@@ -1,3 +1,6 @@
+mod event;
+
+use event::{Action, Event};
 use windows::Win32::{
     Foundation::HWND, Graphics::DirectComposition::{DCompositionCreateDevice2, IDCompositionDesktopDevice}, UI::{HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext}, WindowsAndMessaging::{
         GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, WS_EX_NOREDIRECTIONBITMAP,
@@ -6,6 +9,8 @@ use windows::Win32::{
 };
 use windows_canvas::*;
 use windows_window::*;
+
+use crate::event::MouseButton;
 
 fn main() -> Result<()> {
     unsafe { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)?; };
@@ -16,6 +21,9 @@ fn main() -> Result<()> {
     let window = Window::new("Overlay")
         .style(WS_POPUP.0)
         .ex_style((WS_EX_TOPMOST | WS_EX_NOREDIRECTIONBITMAP).0) 
+        .on_message(|hwnd, msg, wparam, lparam| {
+            handler(&Event::from_raw(hwnd, msg, wparam, lparam))
+        })
         .size(screen_w, screen_h)
         .create()?;
 
@@ -51,4 +59,20 @@ fn main() -> Result<()> {
     })
 }
 
-
+fn handler(event: &Event) -> Option<isize> {
+    match &event.action {
+        Action::KeyDown { key } if *key == Event::KEY_ESC => {
+            quit();
+            Some(0)
+        }
+        Action::MouseDown { button, x, y } if *button == MouseButton::Left => {
+            println!("mouse: ({}, {})", x, y);
+            None
+        }
+        Action::MouseUp { button, x, y } if *button == MouseButton::Left => {
+            println!("mouse: ({}, {})", x, y);
+            None
+        }
+        _ => None,
+    }
+}
