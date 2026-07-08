@@ -207,3 +207,161 @@ fn hi(v: isize) -> i32 {
 fn hi_word(v: isize) -> i16 {
     (v >> 16) as i16
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Shared state types
+// ═══════════════════════════════════════════════════════════════════════
+
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
+// ── MouseState + SharedMouse ─────────────────────────────────────────
+
+/// 鼠标快照状态（Copy，适合 Cell 存储）
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MouseState {
+    pub x: i32,
+    pub y: i32,
+    pub left: bool,
+    pub right: bool,
+    pub middle: bool,
+}
+
+/// 线程内共享的鼠标状态包装器
+pub struct SharedMouse(Rc<Cell<MouseState>>);
+
+impl SharedMouse {
+    pub fn new() -> Self {
+        Self(Rc::new(Cell::new(MouseState::default())))
+    }
+
+    pub fn get(&self) -> MouseState {
+        self.0.get()
+    }
+
+    pub fn update(&self, event: &Event) {
+        let mut s = self.0.get();
+        if let Some((x, y)) = event.mouse_pos() {
+            s.x = x;
+            s.y = y;
+        }
+        match &event.action {
+            Action::MouseDown { button, .. } => match button {
+                MouseButton::Left => s.left = true,
+                MouseButton::Right => s.right = true,
+                MouseButton::Middle => s.middle = true,
+            },
+            Action::MouseUp { button, .. } => match button {
+                MouseButton::Left => s.left = false,
+                MouseButton::Right => s.right = false,
+                MouseButton::Middle => s.middle = false,
+            },
+            Action::DoubleClick { button, .. } => match button {
+                MouseButton::Left => s.left = true,
+                MouseButton::Right => s.right = true,
+                MouseButton::Middle => s.middle = true,
+            },
+            // MouseWheel: 跳过（屏幕坐标，非客户区坐标）
+            // KeyDown/KeyUp/Other: 不更新鼠标状态
+            _ => {}
+        }
+        self.0.set(s);
+    }
+}
+
+impl Clone for SharedMouse {
+    fn clone(&self) -> Self {
+        Self(Rc::clone(&self.0))
+    }
+}
+
+// ── KeyState + SharedKeys ────────────────────────────────────────────
+
+/// 键盘快照状态：256 位 bitset 跟踪虚拟键码 0..=255 的按下状态
+#[derive(Debug, Clone, Copy, Default)]
+pub struct KeyState {
+    bits: [u64; 4],
+}
+
+impl KeyState {
+    pub fn is_down(&self, key: u32) -> bool {
+        if key >= 256 {
+            return false;
+        }
+        let idx = (key / 64) as usize;
+        let bit = key % 64;
+        self.bits[idx] & (1 << bit) != 0
+    }
+
+    fn set(&mut self, key: u32) {
+        if key >= 256 {
+            return;
+        }
+        let idx = (key / 64) as usize;
+        let bit = key % 64;
+        self.bits[idx] |= 1 << bit;
+    }
+
+    fn clear(&mut self, key: u32) {
+        if key >= 256 {
+            return;
+        }
+        let idx = (key / 64) as usize;
+        let bit = key % 64;
+        self.bits[idx] &= !(1 << bit);
+    }
+}
+
+/// 线程内共享的键盘状态包装器
+pub struct SharedKeys(Rc<Cell<KeyState>>);
+
+impl SharedKeys {
+    pub fn new() -> Self {
+        Self(Rc::new(Cell::new(KeyState::default())))
+    }
+
+    pub fn get(&self) -> KeyState {
+        self.0.get()
+    }
+
+    pub fn update(&self, event: &Event) {
+        let mut s = self.0.get();
+        match &event.action {
+            Action::KeyDown { key } => s.set(*key),
+            Action::KeyUp { key } => s.clear(*key),
+            _ => {}
+        }
+        self.0.set(s);
+    }
+}
+
+impl Clone for SharedKeys {
+    fn clone(&self) -> Self {
+        Self(Rc::clone(&self.0))
+    }
+}
+
+// ── SharedEvents ─────────────────────────────────────────────────────
+
+/// 事件缓冲区：收集上一帧到本帧之间发生的所有事件
+pub struct SharedEvents(Rc<RefCell<Vec<Action>>>);
+
+impl SharedEvents {
+    pub fn new() -> Self {
+        Self(Rc::new(RefCell::new(Vec::new())))
+    }
+
+    pub fn push(&self, action: Action) {
+        self.0.borrow_mut().push(action);
+    }
+
+    pub fn take(&self) -> Vec<Action> {
+        std::mem::take(&mut *self.0.borrow_mut())
+    }
+}
+
+impl Clone for SharedEvents {
+    fn clone(&self) -> Self {
+        Self(Rc::clone(&self.0))
+    }
+}
