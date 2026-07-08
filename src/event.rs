@@ -17,6 +17,7 @@ const WM_MBUTTONDOWN: u32 = 0x0207;
 const WM_MBUTTONUP: u32 = 0x0208;
 const WM_MBUTTONDBLCLK: u32 = 0x0209;
 const WM_MOUSEWHEEL: u32 = 0x020A;
+const WM_SIZE: u32 = 0x0005;
 
 // ── Mouse button ────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ pub enum Action {
     MouseUp { button: MouseButton, x: i32, y: i32 },
     DoubleClick { button: MouseButton, x: i32, y: i32 },
     MouseWheel { delta: i32, x: i32, y: i32 },
+    Resize { w: i32, h: i32 },
     Other,
 }
 
@@ -109,6 +111,8 @@ impl Event {
                 let delta = hi_word(wparam as isize) as i32;
                 Action::MouseWheel { delta, x, y }
             }
+
+            WM_SIZE => Action::Resize { w: lo(lparam), h: hi(lparam) },
 
             _ => Action::Other,
         };

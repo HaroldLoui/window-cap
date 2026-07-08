@@ -1,10 +1,10 @@
 use crate::event::{Action, Event, KeyState, MouseState, SharedEvents, SharedKeys, SharedMouse};
-use windows::Win32::UI::{
-    HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext},
-    WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_POPUP},
+use windows::Win32::{
+    Foundation::HWND,
+    Graphics::DirectComposition::{DCompositionCreateDevice2, IDCompositionDesktopDevice}
 };
 use windows_canvas::*;
-use windows_window::{Window, run_with};
+use windows_window::{Window, WindowBuilder, run_with};
 
 // ── Ctx ──────────────────────────────────────────────────────────────
 
@@ -38,34 +38,29 @@ impl Ctx {
 pub trait App {
     /// 每帧调用
     /// - `ctx`: 输入上下文（鼠标状态、键盘状态、事件列表）
+    /// - `session`: 绘图会话，框架已 `begin_draw`，用户只需绘制，无需 `present`
     /// - 返回 `Ok(true)` 立即继续渲染（动画模式）
     /// - 返回 `Ok(false)` 进入 idle，等待下一条窗口消息再渲染（节省 CPU）
     /// - 返回 `Err(e)` 由 `run_with` 透传，Rust `Termination` 打印并退出
-    fn update(&mut self, ctx: &Ctx) -> Result<bool>;
+    fn update(&mut self, ctx: &Ctx, session: &DrawingSession) -> Result<bool>;
 }
 
 // ── run_app ──────────────────────────────────────────────────────────
 
-/// 框架入口 — 创建窗口并运行事件循环
+/// 框架入口 — 用户配置窗口、构造业务数据，框架管 device/chain/dcomp/present/事件路由
 pub fn run_app<A: App>(
     title: &str,
+    configure: impl FnOnce(WindowBuilder) -> WindowBuilder,
     init: impl FnOnce(&Window) -> Result<A>,
 ) -> Result<()> {
-    // DPI 感知
-    unsafe { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)?; };
-
-    let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) };
-    let screen_h = unsafe { GetSystemMetrics(SM_CYSCREEN) };
-
     // 共享状态
     let mouse = SharedMouse::new();
     let keys = SharedKeys::new();
     let events = SharedEvents::new();
 
-    // 创建窗口
-    let window = Window::new(title)
-        .style(WS_POPUP.0)
-        .ex_style((WS_EX_TOPMOST | WS_EX_NOREDIRECTIONBITMAP).0)
+    // 用户配置 builder，框架注入 on_message 后 create
+    let builder = configure(Window::new(title));
+    let window = builder
         .on_message({
             let mouse = mouse.clone();
             let keys = keys.clone();
@@ -78,22 +73,46 @@ pub fn run_app<A: App>(
                 None
             }
         })
-        .size(screen_w, screen_h)
         .create()?;
 
-    // 用户初始化
+    // 框架管 device / chain / dcomp
+    let device = GpuDevice::new()?;
+    let (w, h) = window.client_size();
+    let mut chain = device.create_swap_chain(w as u32, h as u32)?;
+
+    let dcomp: IDCompositionDesktopDevice = unsafe { DCompositionCreateDevice2(device.d2d_device())? };
+    let target = unsafe { dcomp.CreateTargetForHwnd(HWND(window.hwnd()), true)? };
+    let visual = unsafe { dcomp.CreateVisual()? };
+    unsafe {
+        visual.SetContent(chain.raw_swap_chain())?;
+        target.SetRoot(&visual)?;
+        dcomp.Commit()?;
+    }
+    let (_dcomp, _target, _visual) = (dcomp, target, visual);
+
+    // 用户构造业务数据
     let mut app = init(&window)?;
 
-    // 帧上下文
+    // 帧上下文 + 帧循环（自动 begin_draw / present）
     let mut ctx = Ctx {
         mouse: mouse.clone(),
         keys: keys.clone(),
         events: Vec::new(),
     };
 
-    // 帧循环
     run_with(move || {
-        ctx.events = events.take();
-        app.update(&ctx)
+        let frame_events = events.take();
+        // begin_draw 之前先按本帧 resize 事件调整 chain
+        for e in &frame_events {
+            if let Action::Resize { w, h } = e {
+                chain.resize(*w as u32, *h as u32)?;
+            }
+        }
+        ctx.events = frame_events;
+        let session = chain.begin_draw()?;
+        let cont = app.update(&ctx, &session)?;
+        drop(session);
+        chain.present()?;
+        Ok(cont)
     })
 }

@@ -3,26 +3,28 @@ mod event;
 
 use app::{App, Ctx, run_app};
 use event::{Action, Event};
-use windows::Win32::{
-    Foundation::HWND,
-    Graphics::DirectComposition::{DCompositionCreateDevice2, IDCompositionDesktopDevice, IDCompositionTarget, IDCompositionVisual},
+use windows::Win32::UI::{
+    HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext},
+    WindowsAndMessaging::{
+        GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST,
+        WS_POPUP,
+    },
 };
-use windows_canvas::*;
+use windows_canvas::{ColorF, DrawingSession, Rect, Result};
 use windows_window::quit;
 
 /// 应用状态 — self 就是 state
+#[derive(Debug, Default)]
 struct MyApp {
-    chain: SwapChain,
-    width: f32,
-    height: f32,
-    // DirectComposition（必须保持存活）
-    _dcomp: IDCompositionDesktopDevice,
-    _target: IDCompositionTarget,
-    _visual: IDCompositionVisual,
+
+    full_rect: Rect,
+
+    start_pos: Option<(i32, i32)>,
+    end_pos: Option<(i32, i32)>,
 }
 
 impl App for MyApp {
-    fn update(&mut self, ctx: &Ctx) -> Result<bool> {
+    fn update(&mut self, ctx: &Ctx, session: &DrawingSession) -> Result<bool> {
         // ── 按键语义（应用层决策，框架不强制）──
         if ctx.keys().is_down(Event::KEY_ESC) {
             quit();
@@ -34,13 +36,19 @@ impl App for MyApp {
             match event {
                 Action::MouseDown { button, x, y } => {
                     println!("pressed {:?} at ({}, {})", button, x, y);
+                    self.start_pos = Some((*x, *y));
                 }
                 Action::MouseUp { button, x, y } => {
                     println!("released {:?} at ({}, {})", button, x, y);
+                    self.end_pos = Some((*x, *y));
                 }
                 Action::MouseWheel { delta, .. } => {
                     println!("wheel delta: {}", delta);
                 }
+                // Action::Resize { w, h } => {
+                //     self.width = *w as f32;
+                //     self.height = *h as f32;
+                // }
                 _ => {}
             }
         }
@@ -49,43 +57,39 @@ impl App for MyApp {
         let _ = mouse; // 用 mouse.x, mouse.y, mouse.left 等做绘制
 
         // ── 绘制 ──
-        let session = self.chain.begin_draw()?;
         session.clear(ColorF::TRANSPARENT);
 
         let brush = session.create_solid_brush(ColorF::new(0.0, 0.0, 0.0, 0.3))?;
-        let full_rect = Rect::new(0.0, 0.0, self.width, self.height);
-        session.fill_rect(&full_rect, &brush);
+        session.fill_rect(&self.full_rect, &brush);
 
-        drop(session);
-        self.chain.present()?;
         Ok(true)
     }
 }
 
 fn main() -> Result<()> {
-    run_app("Overlay", |window| {
-        let device = GpuDevice::new()?;
-        let (w, h) = window.client_size();
-        let chain = device.create_swap_chain(w as u32, h as u32)?;
+    let (w, h) = get_screen_size();
+    run_app(
+        "Overlay",
+        |wb| {
+            wb.style(WS_POPUP.0)
+                .ex_style((WS_EX_TOPMOST | WS_EX_NOREDIRECTIONBITMAP).0)
+                .size(w, h)
+        },
+        |_window| {
+            Ok(MyApp {
+                full_rect: Rect::from_xywh(0.0, 0.0, w as f32, h as f32),
+                ..Default::default()
+            })
+        },
+    )
+}
 
-        let dcomp: IDCompositionDesktopDevice = unsafe {
-            DCompositionCreateDevice2(device.d2d_device())?
-        };
-        let target = unsafe { dcomp.CreateTargetForHwnd(HWND(window.hwnd()), true)? };
-        let visual = unsafe { dcomp.CreateVisual()? };
-        unsafe {
-            visual.SetContent(chain.raw_swap_chain())?;
-            target.SetRoot(&visual)?;
-            dcomp.Commit()?;
-        }
-
-        Ok(MyApp {
-            chain,
-            width: w as f32,
-            height: h as f32,
-            _dcomp: dcomp,
-            _target: target,
-            _visual: visual.into(),
-        })
-    })
+fn get_screen_size() -> (i32, i32) {
+    // DPI 感知（必须在 GetSystemMetrics 之前，框架统一处理）
+    unsafe {
+        let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    };
+    let w = unsafe { GetSystemMetrics(SM_CXSCREEN) };
+    let h = unsafe { GetSystemMetrics(SM_CYSCREEN) };
+    (w, h)
 }
