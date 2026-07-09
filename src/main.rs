@@ -1,8 +1,4 @@
-mod app;
-mod event;
-
-use app::{App, Ctx, run_app};
-use event::{Action, Event};
+use windows_app::{App, Ctx, run_app, Action, Event};
 use windows::Win32::UI::{
     HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext},
     WindowsAndMessaging::{
@@ -17,7 +13,7 @@ use windows_window::quit;
 #[derive(Debug, Default)]
 struct MyApp {
 
-    full_rect: Rect,
+    fullscreen: Rect,
 
     start_pos: Option<(i32, i32)>,
     end_pos: Option<(i32, i32)>,
@@ -42,8 +38,8 @@ impl App for MyApp {
                     println!("released {:?} at ({}, {})", button, x, y);
                     self.end_pos = Some((*x, *y));
                 }
-                Action::MouseWheel { delta, .. } => {
-                    println!("wheel delta: {}", delta);
+                Action::MouseMove { x, y } => {
+                    println!("move ({}, {})", x, y);
                 }
                 // Action::Resize { w, h } => {
                 //     self.width = *w as f32;
@@ -53,14 +49,16 @@ impl App for MyApp {
             }
         }
 
-        let mouse = ctx.mouse();
-        let _ = mouse; // 用 mouse.x, mouse.y, mouse.left 等做绘制
+        let _mouse = ctx.mouse();
+        // if mouse.left {
+        //     println!("pressed Left at ({}, {})", mouse.x, mouse.y);
+        // }
 
         // ── 绘制 ──
         session.clear(ColorF::TRANSPARENT);
 
         let brush = session.create_solid_brush(ColorF::new(0.0, 0.0, 0.0, 0.3))?;
-        session.fill_rect(&self.full_rect, &brush);
+        session.fill_rect(&self.fullscreen, &brush);
 
         Ok(true)
     }
@@ -77,7 +75,7 @@ fn main() -> Result<()> {
         },
         |_window| {
             Ok(MyApp {
-                full_rect: Rect::from_xywh(0.0, 0.0, w as f32, h as f32),
+                fullscreen: Rect::from_xywh(0.0, 0.0, w as f32, h as f32),
                 ..Default::default()
             })
         },

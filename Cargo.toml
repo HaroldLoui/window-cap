@@ -1,13 +1,22 @@
+[workspace]
+members = ["windows-app"]
+
 [package]
 name = "windows-canvas-demo"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+windows-app = { path = "windows-app" }
+windows-canvas.workspace = true
+windows-window.workspace = true
+windows.workspace = true
+
+[workspace.dependencies]
 windows-canvas = { git = "https://github.com/microsoft/windows-rs" }
 windows-window = { git = "https://github.com/microsoft/windows-rs" }
 windows = { git = "https://github.com/microsoft/windows-rs", features = [
-    "Win32_UI_WindowsAndMessaging",  
+    "Win32_UI_WindowsAndMessaging",
     "Win32_UI_HiDpi",
-    "Win32_Graphics_DirectComposition",          
+    "Win32_Graphics_DirectComposition",
 ]}

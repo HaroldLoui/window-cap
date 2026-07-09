@@ -84,9 +84,9 @@ pub fn run_app<A: App>(
     let target = unsafe { dcomp.CreateTargetForHwnd(HWND(window.hwnd()), true)? };
     let visual = unsafe { dcomp.CreateVisual()? };
     unsafe {
-        visual.SetContent(chain.raw_swap_chain())?;
-        target.SetRoot(&visual)?;
-        dcomp.Commit()?;
+        visual.SetContent(chain.raw_swap_chain()).ok()?;
+        target.SetRoot(&visual).ok()?;
+        dcomp.Commit().ok()?;
     }
     let (_dcomp, _target, _visual) = (dcomp, target, visual);
 
