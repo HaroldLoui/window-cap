@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
 
+use crate::Pos2;
+use crate::key::Key;
 use windows::Win32::Foundation::HWND;
 
 // ── Message constants ───────────────────────────────────────────────
@@ -32,13 +34,13 @@ pub enum MouseButton {
 
 #[derive(Debug, Clone)]
 pub enum Action {
-    KeyDown { key: u32 },
-    KeyUp { key: u32 },
-    MouseMove { x: i32, y: i32 },
-    MouseDown { button: MouseButton, x: i32, y: i32 },
-    MouseUp { button: MouseButton, x: i32, y: i32 },
-    DoubleClick { button: MouseButton, x: i32, y: i32 },
-    MouseWheel { delta: i32, x: i32, y: i32 },
+    KeyDown { key: Key },
+    KeyUp { key: Key },
+    MouseMove { pos: Pos2 },
+    MouseDown { button: MouseButton, pos: Pos2 },
+    MouseUp { button: MouseButton, pos: Pos2 },
+    DoubleClick { button: MouseButton, pos: Pos2 },
+    MouseWheel { delta: i32, pos: Pos2 },
     Resize { w: i32, h: i32 },
     Other,
 }
@@ -54,30 +56,7 @@ pub struct Event {
 }
 
 impl Event {
-    // ── Common key codes ────────────────────────────────────────────
-
-    pub const KEY_BACK: u32 = 0x08;
-    pub const KEY_TAB: u32 = 0x09;
-    pub const KEY_ENTER: u32 = 0x0D;
-    pub const KEY_SHIFT: u32 = 0x10;
-    pub const KEY_CTRL: u32 = 0x11;
-    pub const KEY_ALT: u32 = 0x12;
-    pub const KEY_ESC: u32 = 0x1B;
-    pub const KEY_SPACE: u32 = 0x20;
-    pub const KEY_LEFT: u32 = 0x25;
-    pub const KEY_UP: u32 = 0x26;
-    pub const KEY_RIGHT: u32 = 0x27;
-    pub const KEY_DOWN: u32 = 0x28;
-    pub const KEY_DELETE: u32 = 0x2E;
-
-    pub const KEY_A: u32 = 0x41;
-    pub const KEY_C: u32 = 0x43;
-    pub const KEY_V: u32 = 0x56;
-    pub const KEY_X: u32 = 0x58;
-    pub const KEY_Z: u32 = 0x5A;
-
     // ── Constructor ─────────────────────────────────────────────────
-
     pub fn from_raw(
         hwnd: *mut core::ffi::c_void,
         msg: u32,
@@ -85,31 +64,26 @@ impl Event {
         lparam: isize,
     ) -> Self {
         let action = match msg {
-            WM_KEYDOWN => Action::KeyDown { key: wparam as u32 },
-            WM_KEYUP => Action::KeyUp { key: wparam as u32 },
+            WM_KEYDOWN => Action::KeyDown { key: Key::from_u32(wparam as u32) },
+            WM_KEYUP => Action::KeyUp { key: Key::from_u32(wparam as u32) },
 
-            WM_MOUSEMOVE => Action::MouseMove {
-                x: lo(lparam),
-                y: hi(lparam),
-            },
+            WM_MOUSEMOVE => Action::MouseMove { pos: pos(lparam) },
 
-            WM_LBUTTONDOWN => Action::MouseDown { button: MouseButton::Left, x: lo(lparam), y: hi(lparam) },
-            WM_RBUTTONDOWN => Action::MouseDown { button: MouseButton::Right, x: lo(lparam), y: hi(lparam) },
-            WM_MBUTTONDOWN => Action::MouseDown { button: MouseButton::Middle, x: lo(lparam), y: hi(lparam) },
+            WM_LBUTTONDOWN => Action::MouseDown { button: MouseButton::Left, pos: pos(lparam) },
+            WM_RBUTTONDOWN => Action::MouseDown { button: MouseButton::Right, pos: pos(lparam) },
+            WM_MBUTTONDOWN => Action::MouseDown { button: MouseButton::Middle, pos: pos(lparam) },
 
-            WM_LBUTTONUP => Action::MouseUp { button: MouseButton::Left, x: lo(lparam), y: hi(lparam) },
-            WM_RBUTTONUP => Action::MouseUp { button: MouseButton::Right, x: lo(lparam), y: hi(lparam) },
-            WM_MBUTTONUP => Action::MouseUp { button: MouseButton::Middle, x: lo(lparam), y: hi(lparam) },
+            WM_LBUTTONUP => Action::MouseUp { button: MouseButton::Left, pos: pos(lparam) },
+            WM_RBUTTONUP => Action::MouseUp { button: MouseButton::Right, pos: pos(lparam) },
+            WM_MBUTTONUP => Action::MouseUp { button: MouseButton::Middle, pos: pos(lparam) },
 
-            WM_LBUTTONDBLCLK => Action::DoubleClick { button: MouseButton::Left, x: lo(lparam), y: hi(lparam) },
-            WM_RBUTTONDBLCLK => Action::DoubleClick { button: MouseButton::Right, x: lo(lparam), y: hi(lparam) },
-            WM_MBUTTONDBLCLK => Action::DoubleClick { button: MouseButton::Middle, x: lo(lparam), y: hi(lparam) },
+            WM_LBUTTONDBLCLK => Action::DoubleClick { button: MouseButton::Left, pos: pos(lparam) },
+            WM_RBUTTONDBLCLK => Action::DoubleClick { button: MouseButton::Right, pos: pos(lparam) },
+            WM_MBUTTONDBLCLK => Action::DoubleClick { button: MouseButton::Middle, pos: pos(lparam) },
 
             WM_MOUSEWHEEL => {
-                let x = lo(lparam);
-                let y = hi(lparam);
                 let delta = hi_word(wparam as isize) as i32;
-                Action::MouseWheel { delta, x, y }
+                Action::MouseWheel { delta, pos: pos(lparam) }
             }
 
             WM_SIZE => Action::Resize { w: lo(lparam), h: hi(lparam) },
@@ -129,7 +103,7 @@ impl Event {
     // ── Convenience helpers ─────────────────────────────────────────
 
     /// Keyboard virtual-key code (valid for KeyDown / KeyUp).
-    pub fn key(&self) -> Option<u32> {
+    pub fn key(&self) -> Option<Key> {
         match self.action {
             Action::KeyDown { key } | Action::KeyUp { key } => Some(key),
             _ => None,
@@ -137,13 +111,13 @@ impl Event {
     }
 
     /// Cursor position for any mouse-related action.
-    pub fn mouse_pos(&self) -> Option<(i32, i32)> {
+    pub fn mouse_pos(&self) -> Option<Pos2> {
         match self.action {
-            Action::MouseMove { x, y }
-            | Action::MouseDown { x, y, .. }
-            | Action::MouseUp { x, y, .. }
-            | Action::DoubleClick { x, y, .. }
-            | Action::MouseWheel { x, y, .. } => Some((x, y)),
+            Action::MouseMove { pos }
+            | Action::MouseDown { pos, .. }
+            | Action::MouseUp { pos, .. }
+            | Action::DoubleClick { pos, .. }
+            | Action::MouseWheel { pos, .. } => Some(pos),
             _ => None,
         }
     }
@@ -207,6 +181,11 @@ fn hi(v: isize) -> i32 {
     ((v >> 16) as i16) as i32
 }
 
+/// Extract mouse position from lparam as Pos2.
+fn pos(lparam: isize) -> Pos2 {
+    Pos2::new(lo(lparam) as f32, hi(lparam) as f32)
+}
+
 /// Extract the high-order 16 bits of `v` as signed i16 (wheel delta).
 fn hi_word(v: isize) -> i16 {
     (v >> 16) as i16
@@ -224,8 +203,7 @@ use std::rc::Rc;
 /// 鼠标快照状态（Copy，适合 Cell 存储）
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MouseState {
-    pub x: i32,
-    pub y: i32,
+    pub pos: Pos2,
     pub left: bool,
     pub right: bool,
     pub middle: bool,
@@ -245,9 +223,8 @@ impl SharedMouse {
 
     pub fn update(&self, event: &Event) {
         let mut s = self.0.get();
-        if let Some((x, y)) = event.mouse_pos() {
-            s.x = x;
-            s.y = y;
+        if let Some(pos) = event.mouse_pos() {
+            s.pos = pos;
         }
         match &event.action {
             Action::MouseDown { button, .. } => match button {
@@ -288,30 +265,33 @@ pub struct KeyState {
 }
 
 impl KeyState {
-    pub fn is_down(&self, key: u32) -> bool {
-        if key >= 256 {
+    pub fn is_down(&self, key: Key) -> bool {
+        let v = key.to_u32();
+        if v >= 256 {
             return false;
         }
-        let idx = (key / 64) as usize;
-        let bit = key % 64;
+        let idx = (v / 64) as usize;
+        let bit = v % 64;
         self.bits[idx] & (1 << bit) != 0
     }
 
-    fn set(&mut self, key: u32) {
-        if key >= 256 {
+    fn set(&mut self, key: Key) {
+        let v = key.to_u32();
+        if v >= 256 {
             return;
         }
-        let idx = (key / 64) as usize;
-        let bit = key % 64;
+        let idx = (v / 64) as usize;
+        let bit = v % 64;
         self.bits[idx] |= 1 << bit;
     }
 
-    fn clear(&mut self, key: u32) {
-        if key >= 256 {
+    fn clear(&mut self, key: Key) {
+        let v = key.to_u32();
+        if v >= 256 {
             return;
         }
-        let idx = (key / 64) as usize;
-        let bit = key % 64;
+        let idx = (v / 64) as usize;
+        let bit = v % 64;
         self.bits[idx] &= !(1 << bit);
     }
 }

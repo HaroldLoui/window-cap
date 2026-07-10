@@ -1,4 +1,4 @@
-use windows_app::{App, Ctx, run_app, Action, Event};
+use windows_app::{Action, App, Ctx, MouseButton, Pos2, Key, run_app};
 use windows::Win32::UI::{
     HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext},
     WindowsAndMessaging::{
@@ -13,16 +13,17 @@ use windows_window::quit;
 #[derive(Debug, Default)]
 struct MyApp {
 
+    // 覆盖整个屏幕的rect，用于绘制overlay
     fullscreen: Rect,
 
-    start_pos: Option<(i32, i32)>,
-    end_pos: Option<(i32, i32)>,
+    start_pos: Option<Pos2>,
+    end_pos: Option<Pos2>,
 }
 
 impl App for MyApp {
     fn update(&mut self, ctx: &Ctx, session: &DrawingSession) -> Result<bool> {
         // ── 按键语义（应用层决策，框架不强制）──
-        if ctx.keys().is_down(Event::KEY_ESC) {
+        if ctx.keys().is_down(Key::Escape) {
             quit();
             return Ok(false);
         }
@@ -30,17 +31,15 @@ impl App for MyApp {
         // ── 处理瞬时事件 ──
         for event in ctx.events() {
             match event {
-                Action::MouseDown { button, x, y } => {
-                    println!("pressed {:?} at ({}, {})", button, x, y);
-                    self.start_pos = Some((*x, *y));
+                Action::MouseDown { button: MouseButton::Left, pos } => {
+                    self.start_pos = Some(*pos);
                 }
-                Action::MouseUp { button, x, y } => {
-                    println!("released {:?} at ({}, {})", button, x, y);
-                    self.end_pos = Some((*x, *y));
+                Action::MouseUp { button: MouseButton::Left, pos } => {
+                    self.end_pos = Some(*pos);
                 }
-                Action::MouseMove { x, y } => {
-                    println!("move ({}, {})", x, y);
-                }
+                // Action::MouseMove { x, y } => {
+                //     println!("move ({}, {})", x, y);
+                // }
                 // Action::Resize { w, h } => {
                 //     self.width = *w as f32;
                 //     self.height = *h as f32;
@@ -59,6 +58,11 @@ impl App for MyApp {
 
         let brush = session.create_solid_brush(ColorF::new(0.0, 0.0, 0.0, 0.3))?;
         session.fill_rect(&self.fullscreen, &brush);
+
+        // session.draw_line(p0, p1, brush, width);
+        // session.draw_rect(rect, brush, width);
+        // session.draw_ellipse(ellipse, brush, width);
+        // session.draw_text("text", format, rect, brush);
 
         Ok(true)
     }
