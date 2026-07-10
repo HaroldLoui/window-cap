@@ -1,4 +1,4 @@
-use windows_app::{Action, App, Ctx, MouseButton, Pos2, Key, run_app};
+use windows_app::{App, Ctx, Key, run_app};
 use windows::Win32::UI::{
     HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext},
     WindowsAndMessaging::{
@@ -9,15 +9,14 @@ use windows::Win32::UI::{
 use windows_canvas::{ColorF, DrawingSession, Rect, Result};
 use windows_window::quit;
 
+mod selection;
+use selection::Selection;
+
 /// 应用状态 — self 就是 state
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct MyApp {
-
-    // 覆盖整个屏幕的rect，用于绘制overlay
-    fullscreen: Rect,
-
-    start_pos: Option<Pos2>,
-    end_pos: Option<Pos2>,
+    /// 挖空选区工具 — 管理 overlay 绘制和选区交互
+    selection: Selection,
 }
 
 impl App for MyApp {
@@ -28,41 +27,12 @@ impl App for MyApp {
             return Ok(false);
         }
 
-        // ── 处理瞬时事件 ──
-        for event in ctx.events() {
-            match event {
-                Action::MouseDown { button: MouseButton::Left, pos } => {
-                    self.start_pos = Some(*pos);
-                }
-                Action::MouseUp { button: MouseButton::Left, pos } => {
-                    self.end_pos = Some(*pos);
-                }
-                // Action::MouseMove { x, y } => {
-                //     println!("move ({}, {})", x, y);
-                // }
-                // Action::Resize { w, h } => {
-                //     self.width = *w as f32;
-                //     self.height = *h as f32;
-                // }
-                _ => {}
-            }
-        }
-
-        let _mouse = ctx.mouse();
-        // if mouse.left {
-        //     println!("pressed Left at ({}, {})", mouse.x, mouse.y);
-        // }
+        // ── 将事件分发给选区工具 ──
+        self.selection.handle_event(ctx.events());
 
         // ── 绘制 ──
         session.clear(ColorF::TRANSPARENT);
-
-        let brush = session.create_solid_brush(ColorF::new(0.0, 0.0, 0.0, 0.3))?;
-        session.fill_rect(&self.fullscreen, &brush);
-
-        // session.draw_line(p0, p1, brush, width);
-        // session.draw_rect(rect, brush, width);
-        // session.draw_ellipse(ellipse, brush, width);
-        // session.draw_text("text", format, rect, brush);
+        self.selection.draw_overlay(session)?;
 
         Ok(true)
     }
@@ -79,8 +49,7 @@ fn main() -> Result<()> {
         },
         |_window| {
             Ok(MyApp {
-                fullscreen: Rect::from_xywh(0.0, 0.0, w as f32, h as f32),
-                ..Default::default()
+                selection: Selection::new(Rect::from_xywh(0.0, 0.0, w as f32, h as f32)),
             })
         },
     )
