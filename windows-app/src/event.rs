@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-
 use crate::Pos2;
 use crate::key::Key;
 use windows::Win32::Foundation::HWND;
@@ -57,36 +56,68 @@ pub struct Event {
 
 impl Event {
     // ── Constructor ─────────────────────────────────────────────────
-    pub fn from_raw(
-        hwnd: *mut core::ffi::c_void,
-        msg: u32,
-        wparam: usize,
-        lparam: isize,
-    ) -> Self {
+    pub fn from_raw(hwnd: *mut core::ffi::c_void, msg: u32, wparam: usize, lparam: isize) -> Self {
         let action = match msg {
-            WM_KEYDOWN => Action::KeyDown { key: Key::from_u32(wparam as u32) },
-            WM_KEYUP => Action::KeyUp { key: Key::from_u32(wparam as u32) },
+            WM_KEYDOWN => Action::KeyDown {
+                key: Key::from_u32(wparam as u32),
+            },
+            WM_KEYUP => Action::KeyUp {
+                key: Key::from_u32(wparam as u32),
+            },
 
             WM_MOUSEMOVE => Action::MouseMove { pos: pos(lparam) },
 
-            WM_LBUTTONDOWN => Action::MouseDown { button: MouseButton::Left, pos: pos(lparam) },
-            WM_RBUTTONDOWN => Action::MouseDown { button: MouseButton::Right, pos: pos(lparam) },
-            WM_MBUTTONDOWN => Action::MouseDown { button: MouseButton::Middle, pos: pos(lparam) },
+            WM_LBUTTONDOWN => Action::MouseDown {
+                button: MouseButton::Left,
+                pos: pos(lparam),
+            },
+            WM_RBUTTONDOWN => Action::MouseDown {
+                button: MouseButton::Right,
+                pos: pos(lparam),
+            },
+            WM_MBUTTONDOWN => Action::MouseDown {
+                button: MouseButton::Middle,
+                pos: pos(lparam),
+            },
 
-            WM_LBUTTONUP => Action::MouseUp { button: MouseButton::Left, pos: pos(lparam) },
-            WM_RBUTTONUP => Action::MouseUp { button: MouseButton::Right, pos: pos(lparam) },
-            WM_MBUTTONUP => Action::MouseUp { button: MouseButton::Middle, pos: pos(lparam) },
+            WM_LBUTTONUP => Action::MouseUp {
+                button: MouseButton::Left,
+                pos: pos(lparam),
+            },
+            WM_RBUTTONUP => Action::MouseUp {
+                button: MouseButton::Right,
+                pos: pos(lparam),
+            },
+            WM_MBUTTONUP => Action::MouseUp {
+                button: MouseButton::Middle,
+                pos: pos(lparam),
+            },
 
-            WM_LBUTTONDBLCLK => Action::DoubleClick { button: MouseButton::Left, pos: pos(lparam) },
-            WM_RBUTTONDBLCLK => Action::DoubleClick { button: MouseButton::Right, pos: pos(lparam) },
-            WM_MBUTTONDBLCLK => Action::DoubleClick { button: MouseButton::Middle, pos: pos(lparam) },
+            WM_LBUTTONDBLCLK => Action::DoubleClick {
+                button: MouseButton::Left,
+                pos: pos(lparam),
+            },
+            WM_RBUTTONDBLCLK => Action::DoubleClick {
+                button: MouseButton::Right,
+                pos: pos(lparam),
+            },
+            WM_MBUTTONDBLCLK => Action::DoubleClick {
+                button: MouseButton::Middle,
+                pos: pos(lparam),
+            },
 
             WM_MOUSEWHEEL => {
                 let delta = hi_word(wparam as isize) as i32;
-                Action::MouseWheel { delta, pos: pos(lparam) }
+                Action::MouseWheel {
+                    delta,
+                    pos: pos(lparam),
+                }
             }
 
-            WM_SIZE => Action::Resize { w: lo(lparam), h: hi(lparam) },
+            WM_SIZE => Action::Resize {
+                w: lo(lparam),
+                h: hi(lparam),
+            },
 
             _ => Action::Other,
         };

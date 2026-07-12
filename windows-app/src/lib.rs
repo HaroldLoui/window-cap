@@ -36,6 +36,9 @@ impl Display for Pos2 {
 
 impl From<(i32, i32)> for Pos2 {
     fn from((x, y): (i32, i32)) -> Self {
-        Self { x: x as f32, y: y as f32 }
+        Self {
+            x: x as f32,
+            y: y as f32,
+        }
     }
 }

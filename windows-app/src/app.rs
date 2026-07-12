@@ -1,7 +1,7 @@
 use crate::event::{Action, Event, KeyState, MouseState, SharedEvents, SharedKeys, SharedMouse};
 use windows::Win32::{
     Foundation::HWND,
-    Graphics::DirectComposition::{DCompositionCreateDevice2, IDCompositionDesktopDevice}
+    Graphics::DirectComposition::{DCompositionCreateDevice2, IDCompositionDesktopDevice},
 };
 use windows_canvas::*;
 use windows_window::{Window, WindowBuilder, run_with};
@@ -80,7 +80,8 @@ pub fn run_app<A: App>(
     let (w, h) = window.client_size();
     let mut chain = device.create_swap_chain(w as u32, h as u32)?;
 
-    let dcomp: IDCompositionDesktopDevice = unsafe { DCompositionCreateDevice2(device.d2d_device())? };
+    let dcomp: IDCompositionDesktopDevice =
+        unsafe { DCompositionCreateDevice2(device.d2d_device())? };
     let target = unsafe { dcomp.CreateTargetForHwnd(HWND(window.hwnd()), true)? };
     let visual = unsafe { dcomp.CreateVisual()? };
     unsafe {

@@ -1,4 +1,3 @@
-use windows_app::{App, Ctx, Key, run_app};
 use windows::Win32::UI::{
     HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext},
     WindowsAndMessaging::{
@@ -6,6 +5,7 @@ use windows::Win32::UI::{
         WS_POPUP,
     },
 };
+use windows_app::{App, Ctx, Key, run_app};
 use windows_canvas::{ColorF, DrawingSession, Rect, Result};
 use windows_window::quit;
 
@@ -34,7 +34,7 @@ impl App for MyApp {
 
         // ── 绘制 ──
         session.clear(ColorF::TRANSPARENT);
-        self.selection.draw_overlay(session)?;
+        self.selection.draw(session)?;
 
         Ok(true)
     }
