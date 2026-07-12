@@ -3,7 +3,7 @@ use windows_canvas::{Brush, ColorF, DrawingSession, Rect, Result};
 
 use crate::{
     brush::BrushState,
-    selection::handles::{Handle, HandleRect, calc_handles},
+    selection::handles::{CursorStyle, Handle, HandleRect, calc_handles},
     utils::normalize,
 };
 
@@ -112,13 +112,16 @@ impl Selection {
                         State::Selecting => {
                             self.end_pos = Some(pos);
                             // 选区太小（≤ 5px）则丢弃，回到 None
-                            self.state = if self.bounds().is_some() {
-                                State::Idle
+                            if let Some(rect) = self.bounds() {
+                                // 归一化：确保 start = 左上，end = 右下
+                                self.start_pos = Some(Pos2::new(rect.left, rect.top));
+                                self.end_pos = Some(Pos2::new(rect.right, rect.bottom));
+                                self.state = State::Idle;
                             } else {
                                 self.start_pos = None;
                                 self.end_pos = None;
-                                State::None
-                            };
+                                self.state = State::None;
+                            }
                         }
                         State::Move | State::Resize => {
                             self.drag_origin = None;
@@ -239,6 +242,19 @@ impl Selection {
     }
 
     // ── 内部辅助 ────────────────────────────────────────────────────
+
+    // selection.rs — 新增一个方法
+    pub fn cursor_style(&self) -> CursorStyle {
+        match self.state {
+            State::None | State::Selecting => CursorStyle::Cross,
+            State::Move => CursorStyle::SizeAll,
+            State::Resize => match self.active_handle {
+                Some(hr) => hr.get_cursor_style(),
+                _ => CursorStyle::Arrow,
+            },
+            _ => CursorStyle::Arrow,
+        }
+    }
 }
 
 // ── 未来扩展预留 ────────────────────────────────────────────────────

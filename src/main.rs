@@ -31,6 +31,7 @@ impl App for MyApp {
 
         // ── 将事件分发给选区工具 ──
         self.selection.handle_event(ctx.events());
+        selection::handles::set_cursor(self.selection.cursor_style());
 
         // ── 绘制 ──
         session.clear(ColorF::TRANSPARENT);
