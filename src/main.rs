@@ -9,11 +9,13 @@ use windows::Win32::UI::{
 use windows_canvas::{ColorF, DrawingSession, Rect, Result};
 use windows_window::quit;
 
+mod brush;
 mod selection;
+mod utils;
+
 use selection::Selection;
 
 /// 应用状态 — self 就是 state
-#[derive(Debug)]
 struct MyApp {
     /// 挖空选区工具 — 管理 overlay 绘制和选区交互
     selection: Selection,
