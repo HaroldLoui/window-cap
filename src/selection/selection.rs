@@ -3,14 +3,16 @@ use windows_canvas::{Brush, ColorF, DrawingSession, Rect, Result};
 
 use crate::{
     brush::BrushState,
-    selection::handles::{CursorStyle, Handle, HandleRect, calc_handles},
+    selection::handles::{CursorStyle, Handle, calc_handles},
     utils::normalize,
 };
 
 // ── 常量 ─────────────────────────────────────────────────────────────
 
 /// 默认 overlay 半透明颜色
-pub const OVERLAY_COLOR: ColorF = ColorF::new(0.0, 0.0, 0.0, 0.3);
+const OVERLAY_COLOR: ColorF = ColorF::new(0.0, 0.0, 0.0, 0.3);
+/// 最小选区大小
+const MIN_SELECTION_SIZE: f32 = 5.0;
 
 // ── Selection ────────────────────────────────────────────────────────
 
@@ -29,9 +31,9 @@ pub struct Selection {
     /// 选区移动起始点
     drag_origin: Option<Pos2>,
     /// 当前选中的手柄
-    active_handle: Option<HandleRect>,
+    active_handle: Option<Handle>,
     /// 是否hover了某个手柄
-    hover_handle: Option<HandleRect>,
+    hover_handle: Option<Handle>,
     /// 当前状态
     state: State,
     /// 遮罩层 Brush
@@ -90,7 +92,6 @@ impl Selection {
                             if let Some(handle) = self.hit_handle_fn(pos) {
                                 self.drag_origin = Some(pos);
                                 self.active_handle = Some(handle);
-                                self.hover_handle = Some(handle);
                                 self.state = State::Resize;
                             } else if self.in_selection(pos) {
                                 self.drag_origin = Some(pos);
@@ -146,10 +147,16 @@ impl Selection {
                         }
                     }
                     State::Resize => {
-                        if let (Some(origin), Some(hr)) = (self.drag_origin, self.active_handle) {
+                        if let (Some(origin), Some(handle)) =
+                            (self.drag_origin, self.active_handle)
+                        {
                             let dx = pos.x - origin.x;
                             let dy = pos.y - origin.y;
-                            self.resize_by(hr.handle, dx, dy);
+                            self.resize_by(handle, dx, dy);
+                            if let Some(new_h) = self.fix_flip(handle) {
+                                self.active_handle = Some(new_h);
+                                self.hover_handle = Some(new_h);
+                            }
                             self.drag_origin = Some(pos);
                         }
                     }
@@ -171,7 +178,7 @@ impl Selection {
     pub fn bounds(&self) -> Option<Rect> {
         let start = self.start_pos?;
         let end = self.end_pos?;
-        if (end.x - start.x).abs() <= 5.0 || (end.y - start.y).abs() <= 5.0 {
+        if (end.x - start.x).abs() <= MIN_SELECTION_SIZE || (end.y - start.y).abs() <= MIN_SELECTION_SIZE {
             return None;
         }
         Some(normalize(start, end))
@@ -194,7 +201,7 @@ impl Selection {
     }
 
     /// 是否命中手柄
-    fn hit_handle_fn(&self, pos: Pos2) -> Option<HandleRect> {
+    fn hit_handle_fn(&self, pos: Pos2) -> Option<Handle> {
         let rect = self.bounds()?;
         let handles = calc_handles(rect.left, rect.top, rect.width(), rect.height());
         for h in handles {
@@ -203,7 +210,7 @@ impl Selection {
                 && pos.y >= h.rect.top
                 && pos.y < h.rect.bottom
             {
-                return Some(h);
+                return Some(h.handle);
             }
         }
         None
@@ -225,9 +232,7 @@ impl Selection {
 
         if let Some(rect) = cutout {
             // 画 挖空区域
-            let start = self.start_pos.unwrap();
-            let end = self.end_pos.unwrap();
-            draw_cutout(session, overlay, start, end, &self.fullscreen);
+            draw_cutout(session, overlay, &rect, &self.fullscreen);
 
             // 画 挖空区域 边框
             let border_width = self.border_brush.stroke_width;
@@ -242,7 +247,7 @@ impl Selection {
             for h in &handles {
                 // 普通手柄：填充
                 h.draw(session, border);
-                if self.hover_handle.is_some_and(|hh| hh.handle == h.handle) {
+                if self.hover_handle.is_some_and(|hh| hh == h.handle) {
                     // 悬停的手柄：画白色边框
                     session.draw_rect(&h.rect, hover_brush, hover_width);
                 }
@@ -263,7 +268,7 @@ impl Selection {
             State::None | State::Selecting => CursorStyle::Cross,
             State::Move => CursorStyle::SizeAll,
             State::Resize => match self.active_handle {
-                Some(hr) => hr.get_cursor_style(),
+                Some(handle) => handle.get_cursor_style(),
                 _ => CursorStyle::Arrow,
             },
             State::Idle => {
@@ -352,32 +357,50 @@ impl Selection {
             }
         }
     }
+
+    /// 检测并修正选区翻转：若某轴发生翻转则交换 start/end 对应坐标，并返回重映射后的手柄
+    fn fix_flip(&mut self, handle: Handle) -> Option<Handle> {
+        let (Some(s), Some(e)) = (self.start_pos.as_mut(), self.end_pos.as_mut()) else {
+            return None;
+        };
+        let mut new_handle = handle;
+        let mut flipped = false;
+
+        if s.x > e.x {
+            std::mem::swap(&mut s.x, &mut e.x);
+            new_handle = new_handle.flip_x();
+            flipped = true;
+        }
+        if s.y > e.y {
+            std::mem::swap(&mut s.y, &mut e.y);
+            new_handle = new_handle.flip_y();
+            flipped = true;
+        }
+
+        if flipped {
+            Some(new_handle)
+        } else {
+            None
+        }
+    }
 }
 
 /// 绘制"挖空"效果：在 fullscreen 上画 4 个矩形，留出选区区域
-fn draw_cutout(session: &DrawingSession, brush: &Brush, start: Pos2, end: Pos2, fullscreen: &Rect) {
-    let (left, right) = if start.x <= end.x {
-        (start.x, end.x)
-    } else {
-        (end.x, start.x)
-    };
-    let (top, bottom) = if start.y <= end.y {
-        (start.y, end.y)
-    } else {
-        (end.y, start.y)
-    };
+fn draw_cutout(session: &DrawingSession, brush: &Brush, rect: &Rect, fullscreen: &Rect) {
+    let Rect { left, top, right, bottom} = *rect;
+    let Rect { left: fl, top: ft, right: fr, bottom: fb} = *fullscreen;
 
     // 左边：x=0 ~ left, 高度 = 全屏高
-    let r = Rect::new(0.0, 0.0, left, fullscreen.bottom);
+    let r = Rect::new(fl, ft, left, fb);
     session.fill_rect(&r, brush);
     // 上边：x=left ~ right, 高度 = top
-    let r = Rect::new(left, 0.0, right, top);
+    let r = Rect::new(left, ft, right, top);
     session.fill_rect(&r, brush);
     // 右边：x=right ~ 全屏右, 高度 = 全屏高
-    let r = Rect::new(right, 0.0, fullscreen.right, fullscreen.bottom);
+    let r = Rect::new(right, ft, fr, fb);
     session.fill_rect(&r, brush);
     // 下边：x=left ~ right, y=bottom ~ 全屏底
-    let r = Rect::new(left, bottom, right, fullscreen.bottom);
+    let r = Rect::new(left, bottom, right, fb);
     session.fill_rect(&r, brush);
 }
 

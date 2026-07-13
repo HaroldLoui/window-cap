@@ -13,6 +13,41 @@ pub enum Handle {
     NW,
 }
 
+impl Handle {
+    pub fn get_cursor_style(&self) -> CursorStyle {
+        match self {
+            Handle::NW | Handle::SE => CursorStyle::SizeNWSE,
+            Handle::NE | Handle::SW => CursorStyle::SizeNESW,
+            Handle::N | Handle::S => CursorStyle::SizeNS,
+            Handle::E | Handle::W => CursorStyle::SizeWE,
+        }
+    }
+
+    pub fn flip_x(self) -> Self {
+        match self {
+            Handle::E => Handle::W,
+            Handle::W => Handle::E,
+            Handle::NE => Handle::NW,
+            Handle::NW => Handle::NE,
+            Handle::SE => Handle::SW,
+            Handle::SW => Handle::SE,
+            Handle::N | Handle::S => self,
+        }
+    }
+
+    pub fn flip_y(self) -> Self {
+        match self {
+            Handle::N => Handle::S,
+            Handle::S => Handle::N,
+            Handle::NW => Handle::SW,
+            Handle::SW => Handle::NW,
+            Handle::NE => Handle::SE,
+            Handle::SE => Handle::NE,
+            Handle::E | Handle::W => self,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct HandleRect {
     pub handle: Handle,
@@ -22,15 +57,6 @@ pub struct HandleRect {
 impl HandleRect {
     pub fn draw(&self, session: &DrawingSession, brush: &Brush) {
         session.fill_rect(&self.rect, brush);
-    }
-
-    pub fn get_cursor_style(&self) -> CursorStyle {
-        match self.handle {
-            Handle::NW | Handle::SE => CursorStyle::SizeNWSE,
-            Handle::NE | Handle::SW => CursorStyle::SizeNESW,
-            Handle::N | Handle::S => CursorStyle::SizeNS,
-            Handle::E | Handle::W => CursorStyle::SizeWE,
-        }
     }
 }
 
