@@ -2,7 +2,7 @@
 
 use crate::Pos2;
 use crate::key::Key;
-use windows::Win32::Foundation::HWND;
+use windows::windef::HWND;
 
 // ── Message constants ───────────────────────────────────────────────
 const WM_KEYDOWN: u32 = 0x0100;

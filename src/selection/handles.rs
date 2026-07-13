@@ -1,4 +1,4 @@
-use windows::Win32::UI::WindowsAndMessaging::*;
+use windows::winuser::*;
 use windows_canvas::{Brush, DrawingSession, Rect};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -165,7 +165,7 @@ pub fn set_cursor(style: CursorStyle) {
         CursorStyle::SizeWE => IDC_SIZEWE,
     };
     unsafe {
-        let cursor = LoadCursorW(None, id).ok();
-        SetCursor(cursor);
+        let cursor = LoadCursorW(None, id);
+        SetCursor(Some(cursor));
     }
 }

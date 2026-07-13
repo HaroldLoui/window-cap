@@ -17,11 +17,8 @@ image = "0.25"
 windows-canvas = { git = "https://github.com/microsoft/windows-rs" }
 windows-window = { git = "https://github.com/microsoft/windows-rs" }
 windows = { git = "https://github.com/microsoft/windows-rs", features = [
-    "Win32_UI_WindowsAndMessaging",
-    "Win32_UI_HiDpi",
-    "Win32_Graphics_DirectComposition",
-    "Win32_Graphics_Direct2D",
-    "Win32_Graphics_Direct2D_Common",
-    "Win32_Graphics_Dxgi_Common",
-    "Win32_Graphics_Gdi",
+    "winuser",
+    "dcomp",
+    "d2d",
+    "wingdi",
 ]}

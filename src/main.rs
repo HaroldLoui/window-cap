@@ -1,16 +1,14 @@
 use windows::core::Interface;
-use windows::Win32::Graphics::Direct2D::{
-    Common::{D2D1_ALPHA_MODE_PREMULTIPLIED, D2D1_PIXEL_FORMAT, D2D_RECT_F, D2D_SIZE_U},
+use windows::d2d::{
     D2D1_BITMAP_OPTIONS_NONE, D2D1_BITMAP_PROPERTIES1, D2D1_INTERPOLATION_MODE_LINEAR,
     ID2D1Bitmap1, ID2D1DeviceContext,
 };
-use windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM;
-use windows::Win32::UI::{
-    HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext},
-    WindowsAndMessaging::{
-        GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST,
-        WS_POPUP,
-    },
+use windows::dcommon::{D2D1_ALPHA_MODE_PREMULTIPLIED, D2D1_PIXEL_FORMAT, D2D_RECT_F, D2D_SIZE_U};
+use windows::dxgi::DXGI_FORMAT_B8G8R8A8_UNORM;
+use windows::windef::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
+use windows::winuser::{
+    GetSystemMetrics, SetProcessDpiAwarenessContext, SM_CXSCREEN, SM_CYSCREEN,
+    WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_POPUP,
 };
 use windows_app::{App, Ctx, Key, KeyState, run_app};
 use windows_canvas::{ColorF, DrawingSession, Rect, Result};
@@ -169,8 +167,8 @@ fn main() -> Result<()> {
     run_app(
         "Overlay",
         |wb| {
-            wb.style(WS_POPUP.0)
-                .ex_style((WS_EX_TOPMOST | WS_EX_NOREDIRECTIONBITMAP).0)
+            wb.style(WS_POPUP)
+                .ex_style(WS_EX_TOPMOST | WS_EX_NOREDIRECTIONBITMAP)
                 .size(w, h)
         },
         |_window| Ok(Screenshot::new(pixels, w, h)),
@@ -182,7 +180,7 @@ fn get_screen_size() -> (i32, i32) {
     unsafe {
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     };
-    let w = unsafe { GetSystemMetrics(SM_CXSCREEN) };
-    let h = unsafe { GetSystemMetrics(SM_CYSCREEN) };
+    let w = unsafe { GetSystemMetrics(SM_CXSCREEN as i32) };
+    let h = unsafe { GetSystemMetrics(SM_CYSCREEN as i32) };
     (w, h)
 }

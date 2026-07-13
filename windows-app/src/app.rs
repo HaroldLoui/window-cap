@@ -1,8 +1,6 @@
 use crate::event::{Action, Event, KeyState, MouseState, SharedEvents, SharedKeys, SharedMouse};
-use windows::Win32::{
-    Foundation::HWND,
-    Graphics::DirectComposition::{DCompositionCreateDevice2, IDCompositionDesktopDevice},
-};
+use windows::dcomp::{DCompositionCreateDevice2, IDCompositionDesktopDevice};
+use windows::windef::HWND;
 use windows_canvas::*;
 use windows_window::{Window, WindowBuilder, run_with};
 

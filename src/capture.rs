@@ -1,8 +1,9 @@
-use windows::Win32::Graphics::Gdi::{
-    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
-    GetDIBits, ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS,
-    BI_RGB, CAPTUREBLT, SRCCOPY,
+use windows::windef::HGDIOBJ;
+use windows::wingdi::{
+    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits,
+    SelectObject, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS, BI_RGB, CAPTUREBLT, SRCCOPY,
 };
+use windows::winuser::{GetDC, ReleaseDC};
 use windows_canvas::{Rect, Result};
 
 /// 截取全屏画面，返回 BGRA 像素数据
@@ -13,7 +14,7 @@ use windows_canvas::{Rect, Result};
 pub fn capture_screen(width: i32, height: i32) -> Result<(Vec<u8>, i32, i32)> {
     unsafe {
         let screen_dc = GetDC(None);
-        if screen_dc.is_invalid() {
+        if screen_dc.0.is_null() {
             return Err(windows::core::Error::from_hresult(
                 windows::core::HRESULT(-1),
             ));
@@ -21,7 +22,7 @@ pub fn capture_screen(width: i32, height: i32) -> Result<(Vec<u8>, i32, i32)> {
 
         let mem_dc = CreateCompatibleDC(Some(screen_dc));
         let bitmap = CreateCompatibleBitmap(screen_dc, width, height);
-        let old_obj = SelectObject(mem_dc, bitmap.into());
+        let old_obj = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
 
         let _ = BitBlt(
             mem_dc, 0, 0, width, height,
@@ -36,7 +37,7 @@ pub fn capture_screen(width: i32, height: i32) -> Result<(Vec<u8>, i32, i32)> {
                 biHeight: -height, // 负值 = top-down
                 biPlanes: 1,
                 biBitCount: 32,
-                biCompression: BI_RGB.0,
+                biCompression: BI_RGB,
                 ..Default::default()
             },
             ..Default::default()
@@ -56,7 +57,7 @@ pub fn capture_screen(width: i32, height: i32) -> Result<(Vec<u8>, i32, i32)> {
         );
 
         SelectObject(mem_dc, old_obj);
-        let _ = DeleteObject(bitmap.into());
+        let _ = DeleteObject(HGDIOBJ(bitmap.0));
         let _ = DeleteDC(mem_dc);
         ReleaseDC(None, screen_dc);
 
