@@ -89,11 +89,12 @@ impl Selection {
                             self.state = State::Selecting;
                         }
                         State::Idle => {
-                            if let Some(handle) = self.hit_handle_fn(pos) {
+                            let bounds = self.bounds();
+                            if let Some(handle) = self.hit_handle_fn(&bounds, pos) {
                                 self.drag_origin = Some(pos);
                                 self.active_handle = Some(handle);
                                 self.state = State::Resize;
-                            } else if self.in_selection(pos) {
+                            } else if self.in_selection(&bounds, pos) {
                                 self.drag_origin = Some(pos);
                                 self.state = State::Move;
                             } else {
@@ -161,7 +162,8 @@ impl Selection {
                         }
                     }
                     State::Idle => {
-                        self.hover_handle = self.hit_handle_fn(pos);
+                        let bounds = self.bounds();
+                        self.hover_handle = self.hit_handle_fn(&bounds, pos);
                     }
                     _ => {}
                 },
@@ -192,8 +194,8 @@ impl Selection {
     }
 
     /// 当前位置是否在选区内
-    fn in_selection(&self, pos: Pos2) -> bool {
-        let Some(rect) = self.bounds() else {
+    fn in_selection(&self, bounds: &Option<Rect>, pos: Pos2) -> bool {
+        let Some(rect) = bounds else {
             return false;
         };
 
@@ -201,8 +203,8 @@ impl Selection {
     }
 
     /// 是否命中手柄
-    fn hit_handle_fn(&self, pos: Pos2) -> Option<Handle> {
-        let rect = self.bounds()?;
+    fn hit_handle_fn(&self, bounds: &Option<Rect>, pos: Pos2) -> Option<Handle> {
+        let Some(rect) = bounds else { return None };
         let handles = calc_handles(rect.left, rect.top, rect.width(), rect.height());
         for h in handles {
             if pos.x >= h.rect.left
@@ -276,7 +278,7 @@ impl Selection {
                     // 悬停在手柄上 → 对应的 resize 光标
                     handle.get_cursor_style()
                 } else {
-                    // 没有选区时 Arrow，有选区时看是否在选区内
+                    // 没有选区时 Arrow
                     CursorStyle::Arrow
                 }
             }
@@ -294,7 +296,7 @@ impl Selection {
             end.y += dy;
 
             // clamp 到屏幕内
-            let rect = normalize(Pos2::new(start.x, start.y), Pos2::new(end.x, end.y));
+            let rect = Rect::new(start.x, start.y, end.x, end.y);
             let mut shift_x = 0.0;
             let mut shift_y = 0.0;
 
