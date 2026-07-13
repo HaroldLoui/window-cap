@@ -19,12 +19,6 @@ pub const OVERLAY_COLOR: ColorF = ColorF::new(0.0, 0.0, 0.0, 0.3);
 /// # 职责
 /// - 通过鼠标拖拽创建矩形选区
 /// - 绘制半透明 overlay，在选区位置"挖空"（露出透明背景）
-///
-/// # 未来扩展
-/// - `resize(dw, dh)` — 调整选区大小（从handles）
-/// - `move_by(dx, dy)` — 移动选区位置
-/// - `aspect_ratio_lock` — 锁定宽高比
-/// - edge/ corner handles 拖拽调整
 pub struct Selection {
     /// 全屏边界（绘制 overlay 时确定填充范围）
     fullscreen: Rect,
@@ -36,12 +30,16 @@ pub struct Selection {
     drag_origin: Option<Pos2>,
     /// 当前选中的手柄
     active_handle: Option<HandleRect>,
+    /// 是否hover了某个手柄
+    hover_handle: Option<HandleRect>,
     /// 当前状态
     state: State,
     /// 遮罩层 Brush
     overlay_brush: BrushState,
     /// 选区边框 Brush
     border_brush: BrushState,
+    /// 白色边框 Brush
+    hover_handle_brush: BrushState,
 }
 
 impl Selection {
@@ -53,9 +51,11 @@ impl Selection {
             end_pos: None,
             drag_origin: None,
             active_handle: None,
+            hover_handle: None,
             state: State::None,
             overlay_brush: BrushState::new(OVERLAY_COLOR, 0.0),
             border_brush: BrushState::new(ColorF::RED, 4.0),
+            hover_handle_brush: BrushState::new(ColorF::WHITE, 1.0),
         }
     }
 
@@ -90,6 +90,7 @@ impl Selection {
                             if let Some(handle) = self.hit_handle_fn(pos) {
                                 self.drag_origin = Some(pos);
                                 self.active_handle = Some(handle);
+                                self.hover_handle = Some(handle);
                                 self.state = State::Resize;
                             } else if self.in_selection(pos) {
                                 self.drag_origin = Some(pos);
@@ -151,6 +152,9 @@ impl Selection {
                             self.resize_by(hr.handle, dx, dy);
                             self.drag_origin = Some(pos);
                         }
+                    }
+                    State::Idle => {
+                        self.hover_handle = self.hit_handle_fn(pos);
                     }
                     _ => {}
                 },
@@ -226,13 +230,23 @@ impl Selection {
             draw_cutout(session, overlay, start, end, &self.fullscreen);
 
             // 画 挖空区域 边框
-            let width = self.border_brush.stroke_width;
+            let border_width = self.border_brush.stroke_width;
             let border = self.border_brush.brush(session)?;
-            session.draw_rect(&rect, border, width);
+            session.draw_rect(&rect, border, border_width);
 
             // 画 手柄
             let handles = calc_handles(rect.left, rect.top, rect.width(), rect.height());
-            handles.iter().for_each(|h| h.draw(session, border));
+            let hover_width = self.hover_handle_brush.stroke_width;
+            let hover_brush = self.hover_handle_brush.brush(session)?;
+
+            for h in &handles {
+                // 普通手柄：填充
+                h.draw(session, border);
+                if self.hover_handle.is_some_and(|hh| hh.handle == h.handle) {
+                    // 悬停的手柄：画白色边框
+                    session.draw_rect(&h.rect, hover_brush, hover_width);
+                }
+            }
         } else {
             // 全屏遮罩层
             session.fill_rect(&self.fullscreen, overlay);
@@ -243,7 +257,7 @@ impl Selection {
 
     // ── 内部辅助 ────────────────────────────────────────────────────
 
-    // selection.rs — 新增一个方法
+    // 获取鼠标样式
     pub fn cursor_style(&self) -> CursorStyle {
         match self.state {
             State::None | State::Selecting => CursorStyle::Cross,
@@ -252,18 +266,20 @@ impl Selection {
                 Some(hr) => hr.get_cursor_style(),
                 _ => CursorStyle::Arrow,
             },
-            _ => CursorStyle::Arrow,
+            State::Idle => {
+                if let Some(handle) = self.hover_handle {
+                    // 悬停在手柄上 → 对应的 resize 光标
+                    handle.get_cursor_style()
+                } else {
+                    // 没有选区时 Arrow，有选区时看是否在选区内
+                    CursorStyle::Arrow
+                }
+            }
         }
     }
-}
 
-// ── 未来扩展预留 ────────────────────────────────────────────────────
-//
-// 以下方法为未来功能预留接口，当实现 调整大小 / 移动 等功能时启用：
-//
-impl Selection {
     /// 按偏移量移动选区（不超出屏幕边界）
-    pub fn move_by(&mut self, dx: f32, dy: f32) {
+    fn move_by(&mut self, dx: f32, dy: f32) {
         if let (Some(ref mut start), Some(ref mut end)) =
             (self.start_pos.as_mut(), self.end_pos.as_mut())
         {
