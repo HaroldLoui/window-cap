@@ -2,7 +2,7 @@
 members = ["windows-app"]
 
 [package]
-name = "windows-canvas-demo"
+name = "windows-cap"
 version = "0.1.0"
 edition = "2024"
 
@@ -11,7 +11,7 @@ windows-app = { path = "windows-app" }
 windows-canvas.workspace = true
 windows-window.workspace = true
 windows.workspace = true
-image = "0.25"
+png = "0.17"
 
 [workspace.dependencies]
 windows-canvas = { git = "https://github.com/microsoft/windows-rs" }

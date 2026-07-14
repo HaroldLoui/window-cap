@@ -78,6 +78,9 @@ pub fn save_region(
     rect: &Rect,
     path: &str,
 ) -> Result<()> {
+    use std::fs::File;
+    use std::io::BufWriter;
+
     // clamp 选区到屏幕范围内
     let left = rect.left.max(0.0) as i32;
     let top = rect.top.max(0.0) as i32;
@@ -110,13 +113,32 @@ pub fn save_region(
         }
     }
 
-    if let Err(_) = image::save_buffer(
-        path,
-        &rgba,
-        region_w as u32,
-        region_h as u32,
-        image::ExtendedColorType::Rgba8,
-    ) {
+    // PNG 编码：Fast 压缩，优先速度
+    let file = match File::create(path) {
+        Ok(f) => f,
+        Err(_) => {
+            return Err(windows::core::Error::from_hresult(
+                windows::core::HRESULT(-1),
+            ));
+        }
+    };
+
+    let mut encoder = png::Encoder::new(BufWriter::new(file), region_w as u32, region_h as u32);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder.set_compression(png::Compression::Fast);
+    encoder.set_filter(png::FilterType::Up);
+
+    let mut writer = match encoder.write_header() {
+        Ok(w) => w,
+        Err(_) => {
+            return Err(windows::core::Error::from_hresult(
+                windows::core::HRESULT(-1),
+            ));
+        }
+    };
+
+    if let Err(_) = writer.write_image_data(&rgba) {
         return Err(windows::core::Error::from_hresult(
             windows::core::HRESULT(-1),
         ));
