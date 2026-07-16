@@ -1,5 +1,5 @@
 [workspace]
-members = ["windows-app"]
+members = ["windows-cap-core"]
 
 [package]
 name = "windows-cap"
@@ -7,7 +7,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-windows-app = { path = "windows-app" }
+windows-cap-core = { path = "windows-cap-core" }
 windows-canvas.workspace = true
 windows-window.workspace = true
 windows.workspace = true

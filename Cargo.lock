@@ -132,15 +132,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "windows-app"
-version = "0.1.0"
-dependencies = [
- "windows",
- "windows-canvas",
- "windows-window",
-]
-
-[[package]]
 name = "windows-canvas"
 version = "0.0.0"
 source = "git+https://github.com/microsoft/windows-rs#c669bdff62054a581a7cb2c92f05fd71ebcaa767"
@@ -156,7 +147,16 @@ version = "0.1.0"
 dependencies = [
  "png",
  "windows",
- "windows-app",
+ "windows-canvas",
+ "windows-cap-core",
+ "windows-window",
+]
+
+[[package]]
+name = "windows-cap-core"
+version = "0.1.0"
+dependencies = [
+ "windows",
  "windows-canvas",
  "windows-window",
 ]

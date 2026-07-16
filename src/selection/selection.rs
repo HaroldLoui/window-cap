@@ -1,10 +1,9 @@
-use windows_app::{Action, MouseButton, Pos2};
 use windows_canvas::{Brush, ColorF, DrawingSession, Rect, Result};
+use windows_cap_core::{Action, MouseButton, Pos2};
 
 use crate::{
     brush::BrushState,
     selection::handles::{CursorStyle, Handle, calc_handles},
-    utils::normalize,
 };
 
 // ── 常量 ─────────────────────────────────────────────────────────────
@@ -183,7 +182,7 @@ impl Selection {
         if (end.x - start.x).abs() <= MIN_SELECTION_SIZE || (end.y - start.y).abs() <= MIN_SELECTION_SIZE {
             return None;
         }
-        Some(normalize(start, end))
+        Some(super::normalize(start, end))
     }
 
     /// 获取归一化的四个边值（left, top, right, bottom）
