@@ -7,7 +7,7 @@ use windows::dcommon::{D2D1_ALPHA_MODE_PREMULTIPLIED, D2D1_PIXEL_FORMAT, D2D_REC
 use windows::dxgi::DXGI_FORMAT_B8G8R8A8_UNORM;
 use windows::windef::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
 use windows::winuser::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SetProcessDpiAwarenessContext};
-use windows_canvas::{ColorF, DrawingSession, Rect, Result};
+use windows_canvas::{DrawingSession, Rect, Result};
 use windows_cap_core::{Key, KeyState};
 use windows_window::quit;
 
@@ -48,17 +48,6 @@ impl Screenshot {
 
         if keys.is_down(Key::Enter) {
             if let Some(rect) = self.selection.bounds() {
-
-                // 绘制一个左上角的红色矩形，用于测试 gpu像素是否能够读回cpu，后续移除
-                let test_rect = Rect {
-                    left: rect.left + 100.0,
-                    top: rect.top + 100.0,
-                    right: rect.right / 2.0,
-                    bottom: rect.bottom / 2.0,
-                };
-                let brush = session.create_solid_brush(ColorF::RED).unwrap();
-                session.draw_rect(&test_rect, &brush, 2.0);
-
                 self.save_region(&rect, "output.png", session)?;
                 quit();
                 return Ok(false);

@@ -226,36 +226,40 @@ impl Selection {
         self.end_pos = None;
     }
 
-    /// 绘制 选区 相关元素
-    pub fn draw(&mut self, session: &DrawingSession) -> Result<()> {
+    /// 只绘制挖空遮罩，不画边框和手柄（用于保存时 GPU 回读）
+    pub fn draw_overlay_only(&mut self, session: &DrawingSession) -> Result<()> {
         let cutout = self.bounds();
         let overlay = self.overlay_brush.brush(session)?;
 
         if let Some(rect) = cutout {
-            // 画 挖空区域
             draw_cutout(session, overlay, &rect, &self.fullscreen);
-
-            // 画 挖空区域 边框
-            let border_width = self.border_brush.stroke_width;
-            let border = self.border_brush.brush(session)?;
-            session.draw_rect(&rect, border, border_width);
-
-            // 画 手柄
-            let handles = calc_handles(rect.left, rect.top, rect.width(), rect.height());
-            let hover_width = self.hover_handle_brush.stroke_width;
-            let hover_brush = self.hover_handle_brush.brush(session)?;
-
-            for h in &handles {
-                // 普通手柄：填充
-                h.draw(session, border);
-                if self.hover_handle.is_some_and(|hh| hh == h.handle) {
-                    // 悬停的手柄：画白色边框
-                    session.draw_rect(&h.rect, hover_brush, hover_width);
-                }
-            }
         } else {
-            // 全屏遮罩层
             session.fill_rect(&self.fullscreen, overlay);
+        }
+
+        Ok(())
+    }
+
+    /// 绘制边框 + 手柄（不含遮罩）
+    pub fn draw_border_and_handles(&mut self, session: &DrawingSession) -> Result<()> {
+        let Some(rect) = self.bounds() else {
+            return Ok(());
+        };
+
+        // 画边框
+        let border_width = self.border_brush.stroke_width;
+        let border = self.border_brush.brush(session)?;
+        session.draw_rect(&rect, border, border_width);
+
+        // 画手柄
+        let handles = calc_handles(rect.left, rect.top, rect.width(), rect.height());
+        let hover_width = self.hover_handle_brush.stroke_width;
+        let hover_brush = self.hover_handle_brush.brush(session)?;
+        for h in &handles {
+            h.draw(session, border);
+            if self.hover_handle.is_some_and(|hh| hh == h.handle) {
+                session.draw_rect(&h.rect, hover_brush, hover_width);
+            }
         }
 
         Ok(())

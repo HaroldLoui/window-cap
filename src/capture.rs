@@ -159,6 +159,7 @@ pub fn capture_gpu_pixels(ctx: &ID2D1DeviceContext, width: u32, height: u32) -> 
     unsafe {
         // 0. 关键：Flush 确保之前的 clear + fill_rect 命令真正执行到 target
         let _ = ctx.Flush(None, None);
+        
         // 1. 获取当前渲染目标
         let target_image = ctx.GetTarget()?;
         let target_bitmap: ID2D1Bitmap1 = target_image.cast()?;
