@@ -1,3 +1,7 @@
+use windows::core::Interface;
+use windows::d2d::{D2D1_BITMAP_OPTIONS_CANNOT_DRAW, D2D1_BITMAP_OPTIONS_CPU_READ, D2D1_BITMAP_PROPERTIES1, D2D1_MAP_OPTIONS_READ, ID2D1Bitmap1, ID2D1DeviceContext};
+use windows::dcommon::{D2D_SIZE_U, D2D1_ALPHA_MODE_PREMULTIPLIED, D2D1_PIXEL_FORMAT};
+use windows::dxgi::DXGI_FORMAT_B8G8R8A8_UNORM;
 use windows::windef::HGDIOBJ;
 use windows::wingdi::{
     BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits,
@@ -145,4 +149,54 @@ pub fn save_region(
     }
 
     Ok(())
+}
+
+/// 从 D2D device context 读回当前渲染结果（BGRA 像素）
+///
+/// 必须在 BeginDraw/EndDraw 之间调用。内部会 flush 绘制命令。
+/// 返回 top-down BGRA 像素，逐行连续，无行对齐 padding。
+pub fn capture_gpu_pixels(ctx: &ID2D1DeviceContext, width: u32, height: u32) -> Result<Vec<u8>> {
+    unsafe {
+        // 0. 关键：Flush 确保之前的 clear + fill_rect 命令真正执行到 target
+        let _ = ctx.Flush(None, None);
+        // 1. 获取当前渲染目标
+        let target_image = ctx.GetTarget()?;
+        let target_bitmap: ID2D1Bitmap1 = target_image.cast()?;
+
+        // 2. 创建 CPU 可读的 staging bitmap
+        //    CPU_READ 要求 CANNOT_DRAW，且不能与其他 flag 组合
+        let props = D2D1_BITMAP_PROPERTIES1 {
+            pixelFormat: D2D1_PIXEL_FORMAT {
+                format: DXGI_FORMAT_B8G8R8A8_UNORM,
+                alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
+            },
+            dpiX: 96.0,
+            dpiY: 96.0,
+            bitmapOptions: D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
+            ..Default::default()
+        };
+
+        let size = D2D_SIZE_U { width, height };
+        let staging: ID2D1Bitmap1 = ctx.CreateBitmap(size, None, 0, &props)?;
+
+        // 3. GPU->GPU 复制（隐含 flush，保证之前绘制完成）
+        staging.CopyFromBitmap(None, &target_bitmap, None).ok()?;
+
+        // 4. GPU->CPU 映射读取
+        let mapped = staging.Map(D2D1_MAP_OPTIONS_READ)?;
+
+        // 5. 逐行拷贝到 Vec<u8>（处理 pitch，去掉行尾对齐 padding）
+        let pitch = mapped.pitch as usize;
+        let src_pixels = std::slice::from_raw_parts(mapped.bits, pitch * height as usize);
+        let mut pixels = Vec::with_capacity(width as usize * height as usize * 4);
+        for y in 0..height as usize {
+            let row_start = y * pitch;
+            pixels.extend_from_slice(&src_pixels[row_start..row_start + width as usize * 4]);
+        }
+
+        // 6. 解除映射
+        staging.Unmap().ok()?;
+
+        Ok(pixels)
+    }
 }

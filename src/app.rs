@@ -7,13 +7,12 @@ use windows::dcommon::{D2D1_ALPHA_MODE_PREMULTIPLIED, D2D1_PIXEL_FORMAT, D2D_REC
 use windows::dxgi::DXGI_FORMAT_B8G8R8A8_UNORM;
 use windows::windef::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
 use windows::winuser::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SetProcessDpiAwarenessContext};
-use windows_canvas::{DrawingSession, Rect, Result};
+use windows_canvas::{ColorF, DrawingSession, Rect, Result};
 use windows_cap_core::{Key, KeyState};
 use windows_window::quit;
 
 use crate::capture;
 use crate::selection::Selection;
-
 
 /// 截图应用 — 冻帧底图 + 选区交互 + 保存输出
 pub struct Screenshot {
@@ -41,7 +40,7 @@ impl Screenshot {
     }
 
     /// 处理键盘事件，返回是否继续
-    pub fn handle_keys(&self, keys: KeyState) -> Result<bool> {
+    pub fn handle_keys(&self, keys: KeyState, session: &DrawingSession) -> Result<bool> {
         if keys.is_down(Key::Escape) {
             quit();
             return Ok(false);
@@ -49,7 +48,18 @@ impl Screenshot {
 
         if keys.is_down(Key::Enter) {
             if let Some(rect) = self.selection.bounds() {
-                self.save_region(&rect, "output.png")?;
+
+                // 绘制一个左上角的红色矩形，用于测试 gpu像素是否能够读回cpu，后续移除
+                let test_rect = Rect {
+                    left: rect.left + 100.0,
+                    top: rect.top + 100.0,
+                    right: rect.right / 2.0,
+                    bottom: rect.bottom / 2.0,
+                };
+                let brush = session.create_solid_brush(ColorF::RED).unwrap();
+                session.draw_rect(&test_rect, &brush, 2.0);
+
+                self.save_region(&rect, "output.png", session)?;
                 quit();
                 return Ok(false);
             }
@@ -123,8 +133,15 @@ impl Screenshot {
     }
 
     /// 裁剪选区区域保存为 PNG
-    pub fn save_region(&self, rect: &Rect, path: &str) -> Result<()> {
-        capture::save_region(&self.pixels, self.width, self.height, rect, path)
+    pub fn save_region(&self, rect: &Rect, path: &str, session: &DrawingSession) -> Result<()> {
+        let ctx: ID2D1DeviceContext = session.raw().cast()?;
+        let gpu_pixels = capture::capture_gpu_pixels(
+            &ctx, 
+            self.width as u32, 
+            self.height as u32
+        )?;
+
+        capture::save_region(&gpu_pixels, self.width, self.height, rect, path)
     }
 }
 

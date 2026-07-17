@@ -14,7 +14,7 @@ use app::Screenshot;
 impl App for Screenshot {
     fn update(&mut self, ctx: &Ctx, session: &DrawingSession) -> Result<bool> {
         // ── 按键 ──
-        let cont = self.handle_keys(ctx.keys())?;
+        let cont = self.handle_keys(ctx.keys(), session)?;
         if !cont {
             return Ok(false);
         }
