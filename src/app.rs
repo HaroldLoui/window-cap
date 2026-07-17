@@ -1,3 +1,6 @@
+use std::cell::Cell;
+use std::sync::mpsc::{self, Receiver};
+
 use windows::core::Interface;
 use windows::d2d::{
     D2D1_BITMAP_OPTIONS_NONE, D2D1_BITMAP_PROPERTIES1, D2D1_INTERPOLATION_MODE_LINEAR,
@@ -26,6 +29,8 @@ pub struct Screenshot {
     bitmap: Option<ID2D1Bitmap1>,
     /// 挖空选区工具
     pub selection: Selection,
+    /// 异步保存完成通知通道
+    save_done: Cell<Option<Receiver<()>>>,
 }
 
 impl Screenshot {
@@ -36,25 +41,55 @@ impl Screenshot {
             height,
             bitmap: None,
             selection: Selection::new(Rect::from_xywh(0.0, 0.0, width as f32, height as f32)),
+            save_done: Cell::new(None),
         }
     }
 
-    /// 处理键盘事件，返回是否继续
-    pub fn handle_keys(&self, keys: KeyState, session: &DrawingSession) -> Result<bool> {
+    /// 处理键盘事件
+    pub fn handle_keys(&self, keys: KeyState, session: &DrawingSession) -> Result<()> {
         if keys.is_down(Key::Escape) {
             quit();
-            return Ok(false);
+            return Ok(());
         }
 
         if keys.is_down(Key::Enter) {
             if let Some(rect) = self.selection.bounds() {
-                self.save_region(&rect, "output.png", session)?;
-                quit();
-                return Ok(false);
+                // 主线程：快速回读 GPU 像素（~1-5ms）
+                let ctx: ID2D1DeviceContext = session.raw().cast()?;
+                let gpu_pixels = capture::capture_gpu_pixels(
+                    &ctx,
+                    self.width as u32,
+                    self.height as u32,
+                )?;
+
+                // 异步线程：耗时的裁剪+编码+写文件
+                let (tx, rx) = mpsc::channel();
+                let w = self.width;
+                let h = self.height;
+                std::thread::spawn(move || {
+                    let _ = capture::save_region(&gpu_pixels, w, h, &rect, "output.png");
+                    let _ = tx.send(());
+                });
+
+                // 存储通道，后续帧检查完成状态
+                self.save_done.set(Some(rx));
             }
         }
 
-        Ok(true)
+        Ok(())
+    }
+
+    /// 检查异步保存是否完成，完成则退出
+    pub fn check_save_done(&self) {
+        if let Some(rx) = self.save_done.take() {
+            if rx.try_recv().is_ok() {
+                // 保存完成，退出
+                quit();
+            } else {
+                // 还没完成，放回去继续等
+                self.save_done.set(Some(rx));
+            }
+        }
     }
 
     /// 惰性创建 D2D bitmap（首帧调用）
@@ -121,17 +156,6 @@ impl Screenshot {
         }
     }
 
-    /// 裁剪选区区域保存为 PNG
-    pub fn save_region(&self, rect: &Rect, path: &str, session: &DrawingSession) -> Result<()> {
-        let ctx: ID2D1DeviceContext = session.raw().cast()?;
-        let gpu_pixels = capture::capture_gpu_pixels(
-            &ctx, 
-            self.width as u32, 
-            self.height as u32
-        )?;
-
-        capture::save_region(&gpu_pixels, self.width, self.height, rect, path)
-    }
 }
 
 

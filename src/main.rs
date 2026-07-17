@@ -25,14 +25,14 @@ impl App for Screenshot {
         self.draw_background(session);
         self.selection.draw_overlay_only(session)?;
 
-        // ── 按键处理（在绘制之后，边框之前）──
-        let cont = self.handle_keys(ctx.keys(), session)?;
-        if !cont {
-            return Ok(false); // handle_keys 内部会调用 save_region + quit
-        }
+        // ── 按键处理 ──
+        self.handle_keys(ctx.keys(), session)?;
 
         // ── 绘制：边框 + 手柄 ──
         self.selection.draw_border_and_handles(session)?;
+
+        // ── 检查异步保存是否完成 ──
+        self.check_save_done();
 
         Ok(true)
     }
