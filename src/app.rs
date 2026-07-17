@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::sync::mpsc::{self, Receiver};
 
 use windows::core::Interface;
@@ -30,7 +30,7 @@ pub struct Screenshot {
     /// 挖空选区工具
     pub selection: Selection,
     /// 异步保存完成通知通道
-    save_done: Cell<Option<Receiver<()>>>,
+    save_done: RefCell<Option<Receiver<()>>>,
 }
 
 impl Screenshot {
@@ -41,17 +41,19 @@ impl Screenshot {
             height,
             bitmap: None,
             selection: Selection::new(Rect::from_xywh(0.0, 0.0, width as f32, height as f32)),
-            save_done: Cell::new(None),
+            save_done: RefCell::new(None),
         }
     }
 
     /// 处理键盘事件
     pub fn handle_keys(&self, keys: KeyState, session: &DrawingSession) -> Result<()> {
-        if keys.is_down(Key::Escape) {
+        // 退出时判断下当前是否有保存任务，没有立即退出，有则让保存任务自己退出
+        if keys.is_down(Key::Escape) && self.save_done.borrow().is_none() {
             quit();
             return Ok(());
         }
 
+        // 保存截图到文件系统
         if keys.is_down(Key::Enter) {
             if let Some(rect) = self.selection.bounds() {
                 // 主线程：快速回读 GPU 像素（~1-5ms）
@@ -72,7 +74,7 @@ impl Screenshot {
                 });
 
                 // 存储通道，后续帧检查完成状态
-                self.save_done.set(Some(rx));
+                *self.save_done.borrow_mut() = Some(rx);
             }
         }
 
@@ -81,14 +83,9 @@ impl Screenshot {
 
     /// 检查异步保存是否完成，完成则退出
     pub fn check_save_done(&self) {
-        if let Some(rx) = self.save_done.take() {
-            if rx.try_recv().is_ok() {
-                // 保存完成，退出
-                quit();
-            } else {
-                // 还没完成，放回去继续等
-                self.save_done.set(Some(rx));
-            }
+        if self.save_done.borrow().as_ref().is_some_and(|rx| rx.try_recv().is_ok()) {
+            // 保存完成，退出
+            quit();
         }
     }
 
