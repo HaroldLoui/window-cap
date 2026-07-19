@@ -38,7 +38,7 @@ pub struct Selection {
     /// 遮罩层 Brush
     overlay_brush: BrushState,
     /// 选区边框 Brush
-    border_brush: BrushState,
+    pub border_brush: BrushState,
     /// 白色边框 Brush
     hover_handle_brush: BrushState,
 }
@@ -387,6 +387,10 @@ impl Selection {
         } else {
             None
         }
+    }
+
+    pub fn state(&self) -> State {
+        self.state
     }
 }
 

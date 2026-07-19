@@ -8,6 +8,7 @@ mod app;
 mod brush;
 mod capture;
 mod selection;
+mod annotation;
 
 use app::Screenshot;
 
@@ -18,12 +19,15 @@ impl App for Screenshot {
 
         // ── 事件分发 ──
         self.selection.handle_event(ctx.events());
-        selection::handles::set_cursor(self.selection.cursor_style());
+        selection::set_cursor(self.selection.cursor_style());
 
         // ── 绘制：底图 + 挖空遮罩 ──
         session.clear(ColorF::TRANSPARENT);
         self.draw_background(session);
         self.selection.draw_overlay_only(session)?;
+
+        // 绘制工具栏
+        self.draw_toolbar(session)?;
 
         // ── 按键处理 ──
         self.handle_keys(ctx.keys(), session)?;

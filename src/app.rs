@@ -14,8 +14,10 @@ use windows_canvas::{DrawingSession, Rect, Result};
 use windows_cap_core::{Key, KeyState};
 use windows_window::quit;
 
+use crate::annotation::Toolbar;
 use crate::capture;
 use crate::selection::Selection;
+use crate::selection::selection::State;
 
 /// 截图应用 — 冻帧底图 + 选区交互 + 保存输出
 pub struct Screenshot {
@@ -29,6 +31,8 @@ pub struct Screenshot {
     bitmap: Option<ID2D1Bitmap1>,
     /// 挖空选区工具
     pub selection: Selection,
+    /// 挖空选区工具
+    pub toolbar: Toolbar,
     /// 异步保存完成通知通道
     save_done: RefCell<Option<Receiver<()>>>,
 }
@@ -41,6 +45,7 @@ impl Screenshot {
             height,
             bitmap: None,
             selection: Selection::new(Rect::from_xywh(0.0, 0.0, width as f32, height as f32)),
+            toolbar: Toolbar::new(width, height),
             save_done: RefCell::new(None),
         }
     }
@@ -153,6 +158,15 @@ impl Screenshot {
         }
     }
 
+    /// 工具栏绘制
+    pub fn draw_toolbar(&mut self, session: &DrawingSession) -> Result<()> {
+        let se = &self.selection;
+        if let Some(bounds) = se.bounds() && se.state() == State::Idle {
+            self.toolbar.draw(session, bounds)?;
+        }
+
+        Ok(())
+    }
 }
 
 
