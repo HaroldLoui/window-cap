@@ -1,13 +1,5 @@
 use windows::core::Interface;
-use windows::d2d::{D2D1_BITMAP_OPTIONS_CANNOT_DRAW, D2D1_BITMAP_OPTIONS_CPU_READ, D2D1_BITMAP_PROPERTIES1, D2D1_MAP_OPTIONS_READ, ID2D1Bitmap1, ID2D1DeviceContext};
-use windows::dcommon::{D2D_SIZE_U, D2D1_ALPHA_MODE_PREMULTIPLIED, D2D1_PIXEL_FORMAT};
-use windows::dxgi::DXGI_FORMAT_B8G8R8A8_UNORM;
-use windows::windef::HGDIOBJ;
-use windows::wingdi::{
-    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits,
-    SelectObject, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS, BI_RGB, CAPTUREBLT, SRCCOPY,
-};
-use windows::winuser::{GetDC, ReleaseDC};
+use windows::Win32::*;
 use windows_canvas::{Rect, Result};
 
 /// 截取全屏画面，返回 BGRA 像素数据

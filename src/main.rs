@@ -1,6 +1,4 @@
-use windows::winuser::{
-    WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_POPUP,
-};
+use windows::Win32::*;
 use windows_canvas::{ColorF, DrawingSession, Result};
 use windows_cap_core::{App, Ctx, run_app};
 

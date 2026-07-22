@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 
+use windows::Win32::HWND;
+
 use crate::Pos2;
 use crate::key::Key;
-use windows::windef::HWND;
 
 // ── Message constants ───────────────────────────────────────────────
 const WM_KEYDOWN: u32 = 0x0100;

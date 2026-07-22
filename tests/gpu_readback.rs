@@ -6,13 +6,7 @@
 //! - 像素内容与预期一致
 
 use windows::core::Interface;
-use windows::d2d::{
-    D2D1_BITMAP_OPTIONS_CANNOT_DRAW, D2D1_BITMAP_OPTIONS_CPU_READ,
-    D2D1_BITMAP_PROPERTIES1, D2D1_MAP_OPTIONS_READ,
-    ID2D1Bitmap1, ID2D1DeviceContext,
-};
-use windows::dcommon::{D2D1_ALPHA_MODE_PREMULTIPLIED, D2D1_PIXEL_FORMAT, D2D_SIZE_U};
-use windows::dxgi::DXGI_FORMAT_B8G8R8A8_UNORM;
+use windows::Win32::*;
 use windows_canvas::{ColorF, GpuDevice, Rect, Result};
 
 /// 最小化测试：创建一个 D2D device + swap chain（离屏，不关联窗口），

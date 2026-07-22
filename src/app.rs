@@ -2,14 +2,7 @@ use std::cell::RefCell;
 use std::sync::mpsc::{self, Receiver};
 
 use windows::core::Interface;
-use windows::d2d::{
-    D2D1_BITMAP_OPTIONS_NONE, D2D1_BITMAP_PROPERTIES1, D2D1_INTERPOLATION_MODE_LINEAR,
-    ID2D1Bitmap1, ID2D1DeviceContext,
-};
-use windows::dcommon::{D2D1_ALPHA_MODE_PREMULTIPLIED, D2D1_PIXEL_FORMAT, D2D_RECT_F, D2D_SIZE_U};
-use windows::dxgi::DXGI_FORMAT_B8G8R8A8_UNORM;
-use windows::windef::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
-use windows::winuser::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SetProcessDpiAwarenessContext};
+use windows::Win32::*;
 use windows_canvas::{DrawingSession, Rect, Result};
 use windows_cap_core::{Key, KeyState};
 use windows_window::quit;

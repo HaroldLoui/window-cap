@@ -1,4 +1,4 @@
-use windows::winuser::*;
+use windows::Win32::*;
 use windows_canvas::{Brush, DrawingSession, Rect};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
