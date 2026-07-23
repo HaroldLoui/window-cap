@@ -75,12 +75,12 @@ pub fn run_app<A: App>(
     // 框架管 device / chain / dcomp
     let device = GpuDevice::new()?;
     let (w, h) = window.client_size();
-    let mut chain = device.create_swap_chain(w as u32, h as u32)?;
+    let mut chain = device.create_swap_chain_for_window(&window, w as u32, h as u32)?;
 
     let dcomp: IDCompositionDesktopDevice =
         unsafe { DCompositionCreateDevice2(device.d2d_device())? };
-    let target = unsafe { dcomp.CreateTargetForHwnd(HWND(window.hwnd()), true)? };
-    let visual = unsafe { dcomp.CreateVisual()? };
+    let target: windows::Win32::IDCompositionTarget = unsafe { dcomp.CreateTargetForHwnd(HWND(window.hwnd()), true)? };
+    let visual: windows::Win32::IDCompositionVisual2 = unsafe { dcomp.CreateVisual()? };
     unsafe {
         visual.SetContent(chain.raw_swap_chain()).ok()?;
         target.SetRoot(&visual).ok()?;

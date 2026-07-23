@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::sync::mpsc::{self, Receiver};
 
 use windows::core::Interface;
-use windows::Win32::*;
-use windows_canvas::{DrawingSession, Rect, Result};
+use windows::Win32::{GetSystemMetrics, SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SM_CXSCREEN, SM_CYSCREEN};
+use windows_canvas::{Bitmap, DrawingSession, Rect, Result};
 use windows_cap_core::{Key, KeyState};
 use windows_window::quit;
 
@@ -20,8 +20,8 @@ pub struct Screenshot {
     width: i32,
     /// 截屏高度（物理像素）
     height: i32,
-    /// D2D GPU bitmap（首帧惰性创建）
-    bitmap: Option<ID2D1Bitmap1>,
+    /// 底图 bitmap（首帧惰性创建）
+    bitmap: Option<Bitmap>,
     /// 挖空选区工具
     pub selection: Selection,
     /// 挖空选区工具
@@ -55,7 +55,7 @@ impl Screenshot {
         if keys.is_down(Key::Enter) {
             if let Some(rect) = self.selection.bounds() {
                 // 主线程：快速回读 GPU 像素（~1-5ms）
-                let ctx: ID2D1DeviceContext = session.raw().cast()?;
+                let ctx = session.raw().cast()?;
                 let gpu_pixels = capture::capture_gpu_pixels(
                     &ctx,
                     self.width as u32,
@@ -87,36 +87,17 @@ impl Screenshot {
         }
     }
 
-    /// 惰性创建 D2D bitmap（首帧调用）
+    /// 惰性创建 bitmap（首帧调用）
     pub fn ensure_bitmap(&mut self, session: &DrawingSession) -> Result<()> {
         if self.bitmap.is_some() {
             return Ok(());
         }
 
-        let ctx: ID2D1DeviceContext = session.raw().cast()?;
-
-        let props = D2D1_BITMAP_PROPERTIES1 {
-            pixelFormat: D2D1_PIXEL_FORMAT {
-                format: DXGI_FORMAT_B8G8R8A8_UNORM,
-                alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
-            },
-            dpiX: 96.0,
-            dpiY: 96.0,
-            bitmapOptions: D2D1_BITMAP_OPTIONS_NONE,
-            ..Default::default()
-        };
-
-        let bmp = unsafe {
-            ctx.CreateBitmap(
-                D2D_SIZE_U {
-                    width: self.width as u32,
-                    height: self.height as u32,
-                },
-                Some(self.pixels.as_ptr() as *const _),
-                self.width as u32 * 4,
-                &props,
-            )?
-        };
+        let bmp = session.create_bitmap(
+            &self.pixels,
+            self.width as u32,
+            self.height as u32,
+        )?;
         self.bitmap = Some(bmp);
         Ok(())
     }
@@ -127,28 +108,8 @@ impl Screenshot {
             return;
         };
 
-        let ctx: ID2D1DeviceContext = match session.raw().cast() {
-            Ok(c) => c,
-            Err(_) => return,
-        };
-
-        let dest_rect = D2D_RECT_F {
-            left: 0.0,
-            top: 0.0,
-            right: self.width as f32,
-            bottom: self.height as f32,
-        };
-
-        unsafe {
-            ctx.DrawBitmap(
-                bmp,
-                Some(&dest_rect),
-                1.0,
-                D2D1_INTERPOLATION_MODE_LINEAR,
-                None,
-                None,
-            );
-        }
+        let dest_rect = Rect::from_xywh(0.0, 0.0, self.width as f32, self.height as f32);
+        session.draw_bitmap(bmp, &dest_rect, 1.0);
     }
 
     /// 工具栏绘制
