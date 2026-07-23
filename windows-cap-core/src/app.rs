@@ -1,5 +1,5 @@
 use crate::event::{Action, Event, KeyState, MouseState, SharedEvents, SharedKeys, SharedMouse};
-use windows::Win32::{DCompositionCreateDevice2, HWND, IDCompositionDesktopDevice};
+use windows::Win32::*;
 use windows_canvas::*;
 use windows_window::{Window, WindowBuilder, run_with};
 
@@ -77,16 +77,17 @@ pub fn run_app<A: App>(
     let (w, h) = window.client_size();
     let mut chain = device.create_swap_chain_for_window(&window, w as u32, h as u32)?;
 
-    let dcomp: IDCompositionDesktopDevice =
-        unsafe { DCompositionCreateDevice2(device.d2d_device())? };
-    let target: windows::Win32::IDCompositionTarget = unsafe { dcomp.CreateTargetForHwnd(HWND(window.hwnd()), true)? };
-    let visual: windows::Win32::IDCompositionVisual2 = unsafe { dcomp.CreateVisual()? };
-    unsafe {
+    let (_dcomp, _target, _visual) = unsafe {
+        let dcomp: IDCompositionDesktopDevice = DCompositionCreateDevice2(device.d2d_device())?;
+        let target: IDCompositionTarget = dcomp.CreateTargetForHwnd(HWND(window.hwnd()), true)?;
+        let visual: IDCompositionVisual2 = dcomp.CreateVisual()?;
+        
         visual.SetContent(chain.raw_swap_chain()).ok()?;
         target.SetRoot(&visual).ok()?;
         dcomp.Commit().ok()?;
-    }
-    let (_dcomp, _target, _visual) = (dcomp, target, visual);
+
+        (dcomp, target, visual)
+    };
 
     // 用户构造业务数据
     let mut app = init(&window)?;

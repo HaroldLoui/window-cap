@@ -2,6 +2,10 @@ use windows::core::Interface;
 use windows::Win32::*;
 use windows_canvas::{Rect, Result};
 
+fn windows_error() -> windows::core::Error {
+    windows::core::Error::from_hresult(windows::core::HRESULT(-1))
+}
+
 /// 截取全屏画面，返回 BGRA 像素数据
 ///
 /// 返回 `(pixels, width, height)`：
@@ -11,9 +15,7 @@ pub fn capture_screen(width: i32, height: i32) -> Result<(Vec<u8>, i32, i32)> {
     unsafe {
         let screen_dc = GetDC(None);
         if screen_dc.0.is_null() {
-            return Err(windows::core::Error::from_hresult(
-                windows::core::HRESULT(-1),
-            ));
+            return Err(windows_error());
         }
 
         let mem_dc = CreateCompatibleDC(Some(screen_dc));
@@ -87,9 +89,7 @@ pub fn save_region(
     let region_h = bottom - top;
 
     if region_w <= 0 || region_h <= 0 {
-        return Err(windows::core::Error::from_hresult(
-            windows::core::HRESULT(-1),
-        ));
+        return Err(windows_error());
     }
 
     let pitch = screen_w as usize * 4;
@@ -98,7 +98,7 @@ pub fn save_region(
     let mut rgba = vec![0u8; (region_w * region_h) as usize * 4];
     for y in 0..region_h {
         let src_offset = (top + y) as usize * pitch + left as usize * 4;
-        let dst_offset = y as usize * region_w as usize * 4;
+        let dst_offset = (y * region_w) as usize * 4;
         for x in 0..region_w as usize {
             let si = src_offset + x * 4;
             let di = dst_offset + x * 4;
@@ -110,14 +110,7 @@ pub fn save_region(
     }
 
     // PNG 编码：Fast 压缩，优先速度
-    let file = match File::create(path) {
-        Ok(f) => f,
-        Err(_) => {
-            return Err(windows::core::Error::from_hresult(
-                windows::core::HRESULT(-1),
-            ));
-        }
-    };
+    let file = File::create(path).map_err(|_| windows_error())?;
 
     let mut encoder = png::Encoder::new(BufWriter::new(file), region_w as u32, region_h as u32);
     encoder.set_color(png::ColorType::Rgba);
@@ -125,20 +118,9 @@ pub fn save_region(
     encoder.set_compression(png::Compression::Fast);
     encoder.set_filter(png::FilterType::Up);
 
-    let mut writer = match encoder.write_header() {
-        Ok(w) => w,
-        Err(_) => {
-            return Err(windows::core::Error::from_hresult(
-                windows::core::HRESULT(-1),
-            ));
-        }
-    };
+    let mut writer = encoder.write_header().map_err(|_| windows_error())?;
 
-    if let Err(_) = writer.write_image_data(&rgba) {
-        return Err(windows::core::Error::from_hresult(
-            windows::core::HRESULT(-1),
-        ));
-    }
+    writer.write_image_data(&rgba).map_err(|_| windows_error())?;
 
     Ok(())
 }
@@ -180,11 +162,12 @@ pub fn capture_gpu_pixels(ctx: &ID2D1DeviceContext, width: u32, height: u32) -> 
 
         // 5. 逐行拷贝到 Vec<u8>（处理 pitch，去掉行尾对齐 padding）
         let pitch = mapped.pitch as usize;
-        let src_pixels = std::slice::from_raw_parts(mapped.bits, pitch * height as usize);
-        let mut pixels = Vec::with_capacity(width as usize * height as usize * 4);
-        for y in 0..height as usize {
+        let (width, height) = (width as usize, height as usize);
+        let src_pixels = std::slice::from_raw_parts(mapped.bits, pitch * height);
+        let mut pixels = Vec::with_capacity(width * height * 4);
+        for y in 0..height {
             let row_start = y * pitch;
-            pixels.extend_from_slice(&src_pixels[row_start..row_start + width as usize * 4]);
+            pixels.extend_from_slice(&src_pixels[row_start..row_start + width * 4]);
         }
 
         // 6. 解除映射
